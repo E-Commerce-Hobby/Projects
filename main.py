@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from app.core.errors import custom_exception_handler, ReglaNegocioError
-from Projects.app.api.client_router import router as cliente_router
+
+# 1. Quitamos "Projects." y aseguramos el nombre "cliente_router"
+from app.api.cliente_router import router as cliente_router
+
+# 2. Importamos el router de autenticación
+from app.api.auth_router import router as auth_router
 
 app = FastAPI(
     title="Mi Web Service",
@@ -8,11 +13,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Conectamos el manejador de errores para cumplir la RN-05 (HTTP 409)
+# Conectamos el manejador de errores
 app.add_exception_handler(ReglaNegocioError, custom_exception_handler)
 
-# Conectamos tu Historia de Usuario (HU-007)
+# Conectamos las Historias de Usuario
 app.include_router(cliente_router)
+app.include_router(auth_router) 
 
 @app.get("/")
 def read_root():
