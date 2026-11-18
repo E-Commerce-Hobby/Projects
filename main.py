@@ -1,12 +1,7 @@
-<<<<<<< HEAD
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.responses import JSONResponse
 
-from app.api import productos, cliente_router
-from app.core.errors import registrar_manejadores
-=======
-from fastapi import FastAPI
 from app.core.errors import custom_exception_handler, ReglaNegocioError
 
 # 1. Quitamos "Projects." y aseguramos el nombre "cliente_router"
@@ -14,7 +9,9 @@ from app.api.cliente_router import router as cliente_router
 
 # 2. Importamos el router de autenticación
 from app.api.auth_router import router as auth_router
->>>>>>> origin/development
+
+# 3. Router de productos (HU-001)
+from app.api import productos
 
 app = FastAPI(
     title="Mi Web Service",
@@ -22,11 +19,15 @@ app = FastAPI(
     version="1.0.0"
 )
 
-<<<<<<< HEAD
-registrar_manejadores(app)
+# Conectamos el manejador de errores
+app.add_exception_handler(ReglaNegocioError, custom_exception_handler)
 
-app.include_router(productos.router, prefix="/api/v1")
-app.include_router(cliente_router, prefix="/api/v1")
+# Conectamos las Historias de Usuario
+app.include_router(cliente_router)
+app.include_router(auth_router)
+app.include_router(productos.router, prefix="/api/v1")  # HU-001
+
+# --- Validación de entrada (HU-001): convierte errores de Pydantic en HTTP 400 ---
 CAMPOS_PRODUCTO = ["codigo", "categoria", "caracteristicas", "estado"]
 
 
@@ -80,14 +81,6 @@ async def validacion_handler(request: Request, exc: RequestValidationError):
         },
     )
 
-=======
-# Conectamos el manejador de errores
-app.add_exception_handler(ReglaNegocioError, custom_exception_handler)
-
-# Conectamos las Historias de Usuario
-app.include_router(cliente_router)
-app.include_router(auth_router) 
->>>>>>> origin/development
 
 @app.get("/")
 def read_root():
