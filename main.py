@@ -1,8 +1,8 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from starlette.responses import JSONResponse
 
-from app.api import productos
+from app.api import productos, cliente_router
 from app.core.errors import registrar_manejadores
 
 app = FastAPI(
@@ -14,7 +14,7 @@ app = FastAPI(
 registrar_manejadores(app)
 
 app.include_router(productos.router, prefix="/api/v1")
-
+app.include_router(cliente_router, prefix="/api/v1")
 CAMPOS_PRODUCTO = ["codigo", "categoria", "caracteristicas", "estado"]
 
 
