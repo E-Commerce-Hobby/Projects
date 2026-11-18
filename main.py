@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from app.core.errors import custom_exception_handler, ReglaNegocioError
-from app.api.cliente_router import router as cliente_router
+from Projects.app.api.client_router import router as cliente_router
 
 app = FastAPI(
     title="Mi Web Service",
