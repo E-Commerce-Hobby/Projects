@@ -16,7 +16,8 @@ def registrar_nuevo_cliente(datos: ClienteRegistro) -> dict:
     if cliente_existente:
         raise ReglaNegocioError(
             message="El correo ingresado ya se encuentra registrado.",
-            data=["correo"]
+            data=["correo"],
+            status_code=409  # Explícito: no depende del valor por defecto de errors.py
         )
     
     # CA3: Hashear la contraseña antes de enviarla a la base de datos
