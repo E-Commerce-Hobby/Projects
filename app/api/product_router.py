@@ -15,6 +15,22 @@ def get_product_service() -> ProductService:
     return ProductService(_repository)
 
 
+def get_product_filters(
+    category: Annotated[str | None, Query(description="Categoría del producto")] = None,
+    min_price: Annotated[float | None, Query(description="Precio mínimo")] = None,
+    max_price: Annotated[float | None, Query(description="Precio máximo")] = None,
+    features: Annotated[
+        list[str] | None, Query(description="Características (repetible)")
+    ] = None,
+) -> ProductFilterParams:
+    return ProductFilterParams(
+        category=category,
+        min_price=min_price,
+        max_price=max_price,
+        features=features,
+    )
+
+
 @router.get(
     "",
     response_model=list[ProductResponse],
@@ -36,7 +52,7 @@ def get_product_service() -> ProductService:
     },
 )
 def search_products(
-    filters: Annotated[ProductFilterParams, Query()],
+    filters: Annotated[ProductFilterParams, Depends(get_product_filters)],
     service: Annotated[ProductService, Depends(get_product_service)],
 ) -> list[ProductResponse]:
     return service.search_products(filters)
