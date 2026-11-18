@@ -14,7 +14,8 @@ from app.repositories.cliente_repository import (
     guardar_token_recuperacion,
     obtener_cliente_por_id,
     cliente_existe,
-    actualizar_rol
+    actualizar_rol,
+    contar_administradores
 )
 from app.core.security import verificar_contrasena, crear_token_acceso
 from app.core.errors import ReglaNegocioError
@@ -131,6 +132,15 @@ def asignar_rol_usuario(datos: AsignacionRol, usuario_actual: dict) -> RolAsigna
 
     # CA1: Actualizar el rol y confirmar
     rol_anterior = obtener_cliente_por_id(datos.id_usuario).get("rol", "cliente")
+
+    # Regla de seguridad: el sistema nunca puede quedarse sin administradores
+    if (rol_anterior == "administrador" and rol_nuevo != "administrador"
+            and contar_administradores() == 1):
+        raise ReglaNegocioError(
+            message="No se puede quitar el rol al único administrador del sistema.",
+            status_code=400
+        )
+
     usuario_actualizado = actualizar_rol(datos.id_usuario, rol_nuevo)
 
     return RolAsignadoRespuesta(

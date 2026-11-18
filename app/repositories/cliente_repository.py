@@ -90,6 +90,11 @@ def actualizar_rol(id_cliente: int, rol_nuevo: str) -> dict:
     return cliente
 
 
+def contar_administradores() -> int:
+    """Cuenta cuántos usuarios tienen rol «administrador»."""
+    return sum(1 for cliente in clientes_db if cliente.get("rol") == "administrador")
+
+
 def crear_administrador_inicial() -> None:
     """
     Crea un administrador por defecto para poder asignar roles (HU-030).
