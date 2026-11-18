@@ -79,8 +79,9 @@ def _simular_envio_correo(correo: str, token: str) -> None:
     Simulación del servicio externo de correo (API-EXT-04 / SendGrid).
     TODO: Reemplazar con integración real cuando API-EXT-04 esté disponible.
     """
-    print(f"[SIMULACIÓN CORREO] ─────────────────────────────")
+    # Solo caracteres compatibles con la consola de Windows (cp1252)
+    print("[SIMULACIÓN CORREO] -----------------------------")
     print(f"[SIMULACIÓN CORREO] Destinatario : {correo}")
     print(f"[SIMULACIÓN CORREO] Token        : {token}")
     print(f"[SIMULACIÓN CORREO] Enlace       : https://mi-app.com/restablecer?token={token}")
-    print(f"[SIMULACIÓN CORREO] ─────────────────────────────")
+    print("[SIMULACIÓN CORREO] -----------------------------")

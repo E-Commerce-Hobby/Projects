@@ -13,9 +13,13 @@ router = APIRouter(prefix="/api/v1/clientes", tags=["Clientes"])
 def registrar_cliente(datos: ClienteRegistro):
     # Usamos la función directa
     cliente_creado = registrar_nuevo_cliente(datos)
-    
+
+    # Copia sin el hash de la contraseña: nunca se expone un dato sensible.
+    # No se modifica el registro guardado porque el login lo necesita.
+    datos_publicos = {clave: valor for clave, valor in cliente_creado.items() if clave != "contrasena"}
+
     return {
         "success": True,
         "message": "Cliente registrado exitosamente",
-        "data": cliente_creado
+        "data": datos_publicos
     }
