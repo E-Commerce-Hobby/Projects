@@ -15,8 +15,8 @@ def registrar_nuevo_cliente(datos: ClienteRegistro) -> dict:
     cliente_existente = obtener_cliente_por_correo(datos.correo)
     if cliente_existente:
         raise ReglaNegocioError(
-            mensaje="El correo ingresado ya se encuentra registrado.",
-            campos=["correo"]
+            message="El correo ingresado ya se encuentra registrado.",
+            data=["correo"]
         )
     
     # CA3: Hashear la contraseña antes de enviarla a la base de datos
