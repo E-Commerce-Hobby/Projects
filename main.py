@@ -1,21 +1,52 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+
+from app.api import productos
+from app.api.auth_router import router as auth_router
+from app.api.cliente_router import router as cliente_router
+from app.api.event import router as event_router
 from app.core.errors import (
     ReglaNegocioError,
-    regla_negocio_exception_handler,
-    validation_exception_handler
+    custom_exception_handler,
+    validation_exception_handler,
 )
-from app.api.event import router as event_router
+
 
 app = FastAPI(
     title="HobbyVault API",
-    description="API B2C Omnicanal para Gestión de Productos, Servicios y Eventos",
-    version="1.0.0"
+    description=(
+        "API B2C Omnicanal para Gestión de "
+        "Productos, Servicios y Eventos"
+    ),
+    version="1.0.0",
 )
 
-# Registro de manejadores de errores personalizados (Garantiza HTTP 400 y formato JSON estándar)
-app.add_exception_handler(ReglaNegocioError, regla_negocio_exception_handler)
-app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
-# Registro de routers por Historia de Usuario
+# Manejadores globales de errores
+app.add_exception_handler(
+    ReglaNegocioError,
+    custom_exception_handler,
+)
+
+app.add_exception_handler(
+    RequestValidationError,
+    validation_exception_handler,
+)
+
+
+# Routers de las historias de usuario
+app.include_router(
+    productos.router,
+    prefix="/api/v1",
+)
+
+app.include_router(cliente_router)
+app.include_router(auth_router)
 app.include_router(event_router)
+
+
+@app.get("/")
+def read_root():
+    return {
+        "message": "Servidor activo y funcionando"
+    }
