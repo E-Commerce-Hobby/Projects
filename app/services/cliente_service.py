@@ -17,7 +17,7 @@ def registrar_nuevo_cliente(datos: ClienteRegistro) -> dict:
         raise ReglaNegocioError(
             message="El correo ingresado ya se encuentra registrado.",
             data=["correo"],
-            status_code=409 
+            status_code=409  # Explícito: no depende del valor por defecto de errors.py
         )
     
     # CA3: Hashear la contraseña antes de enviarla a la base de datos
@@ -30,5 +30,4 @@ def registrar_nuevo_cliente(datos: ClienteRegistro) -> dict:
         contrasena_hash=contrasena_hash
     )
     
-
     return ClienteRespuesta(**cliente_creado).model_dump()

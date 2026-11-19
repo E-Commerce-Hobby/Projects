@@ -1,3 +1,4 @@
+import hashlib
 from datetime import datetime
 
 # ── HU-007 / HU-008: Almacén de clientes ─────────────────────────────────────
@@ -14,7 +15,7 @@ def obtener_cliente_por_correo(correo: str):
             return cliente
     return None
 
-def guardar_cliente(nombre: str, correo: str, contrasena_hash: str) -> dict:
+def guardar_cliente(nombre: str, correo: str, contrasena_hash: str, rol: str = "cliente") -> dict:
     """Guarda el cliente simulando una base de datos y retorna los datos."""
     global cliente_id_counter
 
@@ -22,7 +23,8 @@ def guardar_cliente(nombre: str, correo: str, contrasena_hash: str) -> dict:
         "id": cliente_id_counter,
         "nombre": nombre,
         "correo": correo,
-        "contrasena": contrasena_hash  # CA3: Se guarda el hash, nunca el texto plano
+        "contrasena": contrasena_hash,  # CA3: Se guarda el hash, nunca el texto plano
+        "rol": rol  # HU-030: todo cliente nuevo inicia con rol «cliente»
     }
 
     clientes_db.append(nuevo_cliente)
@@ -65,3 +67,47 @@ def obtener_token_recuperacion(token: str) -> dict | None:
     Retorna None si el token no existe.
     """
     return tokens_recuperacion_db.get(token)
+
+# ── HU-030: Roles de usuario ────────────────────────────────────────────────
+
+def obtener_cliente_por_id(id_cliente: int) -> dict | None:
+    """Busca un cliente por su id."""
+    for cliente in clientes_db:
+        if cliente["id"] == id_cliente:
+            return cliente
+    return None
+
+
+def cliente_existe(id_cliente: int) -> bool:
+    """Contrato público (tanda 1): indica si existe un cliente con ese id."""
+    return obtener_cliente_por_id(id_cliente) is not None
+
+
+def actualizar_rol(id_cliente: int, rol_nuevo: str) -> dict:
+    """Actualiza el rol del cliente y retorna el registro actualizado."""
+    cliente = obtener_cliente_por_id(id_cliente)
+    cliente["rol"] = rol_nuevo
+    return cliente
+
+
+def contar_administradores() -> int:
+    """Cuenta cuántos usuarios tienen rol «administrador»."""
+    return sum(1 for cliente in clientes_db if cliente.get("rol") == "administrador")
+
+
+def crear_administrador_inicial() -> None:
+    """
+    Crea un administrador por defecto para poder asignar roles (HU-030).
+    Sin él nadie podría asignar el primer rol de administrador.
+    """
+    if obtener_cliente_por_correo("admin@hobbyvault.com"):
+        return
+    guardar_cliente(
+        nombre="Administrador",
+        correo="admin@hobbyvault.com",
+        contrasena_hash=hashlib.sha256("Admin123!".encode("utf-8")).hexdigest(),
+        rol="administrador"
+    )
+
+
+crear_administrador_inicial()
