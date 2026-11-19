@@ -1,5 +1,5 @@
 import hashlib
-from app.domain.cliente_schema import ClienteRegistro
+from app.domain.cliente_schema import ClienteRegistro, ClienteRespuesta
 from app.repositories.cliente_repository import obtener_cliente_por_correo, guardar_cliente
 from app.core.errors import ReglaNegocioError
 
@@ -16,7 +16,8 @@ def registrar_nuevo_cliente(datos: ClienteRegistro) -> dict:
     if cliente_existente:
         raise ReglaNegocioError(
             message="El correo ingresado ya se encuentra registrado.",
-            data=["correo"]
+            data=["correo"],
+            status_code=409 
         )
     
     # CA3: Hashear la contraseña antes de enviarla a la base de datos
@@ -29,4 +30,5 @@ def registrar_nuevo_cliente(datos: ClienteRegistro) -> dict:
         contrasena_hash=contrasena_hash
     )
     
-    return cliente_creado
+
+    return ClienteRespuesta(**cliente_creado).model_dump()
