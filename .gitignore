@@ -1,9 +1,5 @@
 venv/
-.venv/
-env/
 .env
 __pycache__/
 *.pyc
 *.db
-.pytest_cache/
-.vscode/
