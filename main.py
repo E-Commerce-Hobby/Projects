@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from app.api.disponibilidad_router import router as disponibilidad_router
 from app.api.carrito_router import router as carrito_router
 from app.api.reserva_router import router as reserva_router
 from app.api import productos
@@ -40,6 +41,7 @@ app.add_exception_handler(
 # Routers de las historias de usuario (cada router se registra UNA sola vez)
 app.include_router(productos.router, prefix="/api/v1")       # HU-001
 app.include_router(reserva_router)                           # HU-004
+app.include_router(disponibilidad_router)                    # HU-005
 app.include_router(carrito_router)                           # HU-009
 app.include_router(cliente_router)                           # HU-007
 app.include_router(auth_router)                              # HU-008 / HU-029 / HU-030
