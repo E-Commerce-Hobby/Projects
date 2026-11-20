@@ -24,7 +24,13 @@ def guardar_cliente(nombre: str, correo: str, contrasena_hash: str, rol: str = "
         "nombre": nombre,
         "correo": correo,
         "contrasena": contrasena_hash,  # CA3: Se guarda el hash, nunca el texto plano
-        "rol": rol  # HU-030: todo cliente nuevo inicia con rol «cliente»
+        "rol": rol,                     # HU-030: todo cliente nuevo inicia con rol «cliente»
+        "direcciones": [],              # HU-028: direcciones del perfil
+        "preferencias": {               # HU-028: preferencias por defecto
+            "notificaciones_correo": True,
+            "categorias_favoritas": [],
+            "idioma": "es"
+        }
     }
 
     clientes_db.append(nuevo_cliente)
@@ -94,6 +100,19 @@ def contar_administradores() -> int:
     """Cuenta cuántos usuarios tienen rol «administrador»."""
     return sum(1 for cliente in clientes_db if cliente.get("rol") == "administrador")
 
+# ── HU-028: Gestión de perfil ─────────────────────────────────────────────────
+
+def actualizar_perfil_cliente(id_cliente: int, campos: dict) -> dict | None:
+    """Actualiza únicamente los campos enviados del perfil del cliente."""
+    cliente = obtener_cliente_por_id(id_cliente)
+    if not cliente:
+        return None
+
+    for clave, valor in campos.items():
+        if clave in ("nombre", "correo", "direcciones", "preferencias"):
+            cliente[clave] = valor
+
+    return cliente
 
 def crear_administrador_inicial() -> None:
     """
