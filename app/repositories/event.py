@@ -27,19 +27,6 @@ class EventRepository:
         self._events_db.clear()
         self._id_counter = 1
 
-    # Agregar dentro de la clase EventRepository en app/repositories/event.py
-    def get_by_id(self, event_id: int) -> Optional[dict]:
-        for event in self._events_db:
-            if event["id"] == event_id:
-                return event
-        return None
-
-    def update_available_spots(self, event_id: int, new_available_spots: int) -> Optional[dict]:
-        event = self.get_by_id(event_id)
-        if event:
-            event["available_spots"] = new_available_spots
-        return event
-
 
 # Instancia singleton en memoria
 event_repository = EventRepository()
