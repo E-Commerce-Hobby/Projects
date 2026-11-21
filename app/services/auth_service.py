@@ -1,10 +1,21 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from app.domain.auth_schema import LoginPeticion, TokenRespuesta, SolicitudRecuperacion
+from app.domain.auth_schema import (
+    LoginPeticion,
+    TokenRespuesta,
+    SolicitudRecuperacion,
+    AsignacionRol,
+    RolAsignadoRespuesta,
+    ROLES_PERMITIDOS
+)
 from app.repositories.cliente_repository import (
     obtener_cliente_por_correo,
-    guardar_token_recuperacion
+    guardar_token_recuperacion,
+    obtener_cliente_por_id,
+    cliente_existe,
+    actualizar_rol,
+    contar_administradores
 )
 from app.core.security import verificar_contrasena, crear_token_acceso
 from app.core.errors import ReglaNegocioError
@@ -22,7 +33,7 @@ def autenticar_usuario(credenciales: LoginPeticion) -> TokenRespuesta:
         raise ReglaNegocioError(message="Credenciales inválidas", status_code=401)
 
     # Asumimos el rol por defecto si no lo tiene guardado
-    rol_usuario = cliente.get("rol", "Cliente")
+    rol_usuario = cliente.get("rol", "cliente")
 
     token, fecha_expiracion = crear_token_acceso(
         data={"sub": str(cliente["id"]), "rol": rol_usuario}
@@ -79,8 +90,62 @@ def _simular_envio_correo(correo: str, token: str) -> None:
     Simulación del servicio externo de correo (API-EXT-04 / SendGrid).
     TODO: Reemplazar con integración real cuando API-EXT-04 esté disponible.
     """
-    print(f"[SIMULACIÓN CORREO] ─────────────────────────────")
+    # Solo caracteres compatibles con la consola de Windows (cp1252)
+    print("[SIMULACIÓN CORREO] -----------------------------")
     print(f"[SIMULACIÓN CORREO] Destinatario : {correo}")
     print(f"[SIMULACIÓN CORREO] Token        : {token}")
     print(f"[SIMULACIÓN CORREO] Enlace       : https://mi-app.com/restablecer?token={token}")
-    print(f"[SIMULACIÓN CORREO] ─────────────────────────────")
+    print("[SIMULACIÓN CORREO] -----------------------------")
+
+
+# ── HU-030: Asignación de roles a usuarios ──────────────────────────────────
+
+def asignar_rol_usuario(datos: AsignacionRol, usuario_actual: dict) -> RolAsignadoRespuesta:
+    """
+    HU-030: Asigna un rol a un usuario.
+
+    CA2: Solo un «administrador» puede asignar roles (403).
+    CA3: El rol debe ser «cliente», «cajero» o «administrador» (400).
+    CA4: El usuario debe existir (404).
+    CA1: Actualiza el rol y retorna el rol anterior y el nuevo.
+         Los tokens emitidos desde ahora llevan el rol nuevo (el login lee el rol guardado).
+    """
+    # CA2: Verificar que quien asigna sea administrador
+    if usuario_actual.get("rol") != "administrador":
+        raise ReglaNegocioError(
+            message="No tienes permiso para asignar roles. Se requiere rol «administrador».",
+            status_code=403
+        )
+
+    # CA3: Normalizar y validar el rol solicitado
+    rol_nuevo = datos.rol.strip().lower()
+    if rol_nuevo not in ROLES_PERMITIDOS:
+        raise ReglaNegocioError(
+            message=f"El rol no es válido. Roles permitidos: {', '.join(ROLES_PERMITIDOS)}.",
+            data=list(ROLES_PERMITIDOS),
+            status_code=400
+        )
+
+    # CA4: Verificar que el usuario exista
+    if not cliente_existe(datos.id_usuario):
+        raise ReglaNegocioError(message="El usuario indicado no existe.", status_code=404)
+
+    # CA1: Actualizar el rol y confirmar
+    rol_anterior = obtener_cliente_por_id(datos.id_usuario).get("rol", "cliente")
+
+    # Regla de seguridad: el sistema nunca puede quedarse sin administradores
+    if (rol_anterior == "administrador" and rol_nuevo != "administrador"
+            and contar_administradores() == 1):
+        raise ReglaNegocioError(
+            message="No se puede quitar el rol al único administrador del sistema.",
+            status_code=400
+        )
+
+    usuario_actualizado = actualizar_rol(datos.id_usuario, rol_nuevo)
+
+    return RolAsignadoRespuesta(
+        id_usuario=usuario_actualizado["id"],
+        correo=usuario_actualizado["correo"],
+        rol_anterior=rol_anterior,
+        rol_nuevo=rol_nuevo
+    )
