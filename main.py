@@ -9,6 +9,7 @@ from app.api.cliente_router import router as cliente_router
 from app.api.event import router as event_router
 from app.api.enrollment import router as enrollment_router
 from app.api.product_router import router as product_router
+from app.api.inventory import router as inventory_router
 from app.core.errors import (
     ReglaNegocioError,
     custom_exception_handler,
@@ -49,6 +50,11 @@ app.include_router(event_router)                             # HU-017
 app.include_router(enrollment_router)                        # Inscripciones
 app.include_router(product_router, prefix="/api/v1")         # HU-002
 
+app.include_router(cliente_router)
+app.include_router(auth_router)
+app.include_router(event_router)
+app.include_router(inventory_router, prefix="/api/v1")
+app.include_router(product_router, prefix="/api/v1")
 
 @app.get("/")
 def read_root():
