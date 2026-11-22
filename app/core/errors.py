@@ -59,7 +59,11 @@ async def validation_exception_handler(
                 msg.replace("Value error, ", "")
             )
 
-        elif "int_parsing" in err_type or "int_from_float" in err_type:
+        elif (
+            "int_parsing" in err_type
+            or "int_from_float" in err_type
+            or err_type == "int_type"
+        ):
             if field == "max_capacity":
                 custom_messages.append(
                     "La capacidad es inválida (RN-04): "
@@ -123,6 +127,26 @@ async def not_found_exception_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "success": False,
+            "message": exc.mensaje,
+            "data": None,
+        },
+    )
+class ServicioNoDisponibleError(Exception):
+    """Raised when a required internal or external service is unavailable (HTTP 503)."""
+
+    def __init__(self, mensaje: str) -> None:
+        self.mensaje = mensaje
+        super().__init__(mensaje)    
+
+
+async def service_unavailable_exception_handler(
+    request: Request,
+    exc: ServicioNoDisponibleError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={
             "success": False,
             "message": exc.mensaje,
