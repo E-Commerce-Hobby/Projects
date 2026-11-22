@@ -51,3 +51,6 @@ class PosRepository:
             self._sales[saved.id] = saved
             self._next_sale_id += 1
         return saved
+ 
+    def get_sale(self, sale_id: int) -> SaleRecord | None:
+        return self._sales.get(sale_id)

@@ -7,11 +7,14 @@ from app.api.event import router as event_router
 from app.api.enrollment import router as enrollment_router
 from app.api.product_router import router as product_router
 from app.api.pos import router as pos_router
+from app.api.receipt import router as receipt_router
 from app.core.errors import (
     ReglaNegocioError,
     RecursoNoEncontradoError,
+    ServicioNoDisponibleError,
     custom_exception_handler,
     not_found_exception_handler,
+    service_unavailable_exception_handler,
     validation_exception_handler,
 )
 
@@ -37,6 +40,10 @@ app.add_exception_handler(
     validation_exception_handler,
 )
 app.add_exception_handler(RecursoNoEncontradoError, not_found_exception_handler)
+app.add_exception_handler(
+    ServicioNoDisponibleError,
+    service_unavailable_exception_handler,
+)
 
 # Routers de las historias de usuario (cada router se registra UNA sola vez)
 app.include_router(productos.router, prefix="/api/v1")       # HU-001
@@ -45,6 +52,7 @@ app.include_router(auth_router)                              # HU-008 / HU-029 /
 app.include_router(event_router)                             # HU-017
 app.include_router(product_router, prefix="/api/v1")         # HU-002
 app.include_router(pos_router, prefix="/api/v1")
+app.include_router(receipt_router, prefix="/api/v1")         # Comprobante POS
 
 @app.get("/")
 def read_root():
