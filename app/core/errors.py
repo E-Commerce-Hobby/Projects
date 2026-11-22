@@ -108,3 +108,24 @@ async def validation_exception_handler(
             "message": final_message[:200],
         },
     )
+
+class RecursoNoEncontradoError(Exception):
+    """Raised when a requested resource does not exist (HTTP 404)."""
+
+    def __init__(self, mensaje: str) -> None:
+        self.mensaje = mensaje
+        super().__init__(mensaje)
+
+
+async def not_found_exception_handler(
+    request: Request,
+    exc: RecursoNoEncontradoError,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={
+            "success": False,
+            "message": exc.mensaje,
+            "data": None,
+        },
+    )

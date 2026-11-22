@@ -5,7 +5,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from app.domain.pos import (
-    BarcodeSearchRequest,
     ErrorResponse,
     ProductSearchResponse,
     SaleCreateRequest,
@@ -54,10 +53,16 @@ def get_pos_service(
     },
 )
 def search_product_by_barcode(
-    params: Annotated[BarcodeSearchRequest, Query()],
+    barcode: Annotated[
+        str,
+        Query(
+            description="Código de barras del producto.",
+            max_length=50,
+        ),
+    ],
     service: Annotated[PosService, Depends(get_pos_service)],
 ) -> ProductSearchResponse:
-    return service.search_product_by_barcode(params.barcode)
+    return service.search_product_by_barcode(barcode)
 
 
 @router.post(
