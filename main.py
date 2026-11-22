@@ -4,6 +4,7 @@ from app.api import productos
 from app.api.auth_router import router as auth_router
 from app.api.cliente_router import router as cliente_router
 from app.api.event import router as event_router
+from app.api.enrollment import router as enrollment_router
 from app.api.product_router import router as product_router
 from app.api.pos import router as pos_router
 from app.core.errors import (
