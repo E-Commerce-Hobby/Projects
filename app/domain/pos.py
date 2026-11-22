@@ -1,0 +1,170 @@
+"""Pydantic schemas for the POS module (barcode search and counter sales)."""
+import re
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+BARCODE_REGEX = re.compile(r"^[A-Za-z0-9]{1,50}$")
+INVALID_BARCODE_MESSAGE = (
+    "El código es inválido: debe tener solo letras y números (máximo 50) "
+    "y no puede estar vacío."
+)
+
+
+def _validate_barcode(value: str) -> str:
+    if not value or not BARCODE_REGEX.fullmatch(value):
+        raise ValueError(INVALID_BARCODE_MESSAGE)
+    return value
+
+
+# ---------------------------------------------------------------------------
+# Request schemas (input)
+# ---------------------------------------------------------------------------
+class BarcodeSearchRequest(BaseModel):
+    """Query params for FUN-4.2.1."""
+
+    barcode: str = Field(description="Código de barras del producto.", examples=["7701234567890"])
+
+    @field_validator("barcode")
+    @classmethod
+    def validate_barcode(cls, value: str) -> str:
+        return _validate_barcode(value)
+
+
+class SaleItemRequest(BaseModel):
+    product_code: str = Field(description="Código del producto vendido.", examples=["7701234567890"])
+    quantity: int = Field(description="Cantidad vendida (entero mayor a 0).", examples=[2])
+
+    @field_validator("product_code")
+    @classmethod
+    def validate_product_code(cls, value: str) -> str:
+        return _validate_barcode(value)
+
+    @field_validator("quantity")
+    @classmethod
+    def validate_quantity(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("La cantidad debe ser un entero mayor a 0.")
+        return value
+
+
+class SaleCreateRequest(BaseModel):
+    """Body for FUN-4.2.2."""
+
+    cash_register_id: int = Field(description="ID de la caja donde se registra la venta.", examples=[1])
+    products: list[SaleItemRequest] = Field(description="Productos vendidos en el mostrador.")
+
+    @field_validator("cash_register_id")
+    @classmethod
+    def validate_cash_register_id(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("El ID de caja debe ser un entero positivo.")
+        return value
+
+    @field_validator("products")
+    @classmethod
+    def validate_products_not_empty(cls, value: list[SaleItemRequest]) -> list[SaleItemRequest]:
+        if not value:
+            raise ValueError("La venta no tiene productos.")
+        return value
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "cash_register_id": 1,
+                "products": [{"product_code": "7701234567890", "quantity": 2}],
+            }
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Response schemas (output)
+# ---------------------------------------------------------------------------
+class ProductInfo(BaseModel):
+    code: str
+    category: str
+    features: dict[str, str]
+
+
+class ProductSearchResponse(BaseModel):
+    product: ProductInfo
+    price: float = Field(description="Precio unitario.")
+    available_quantity: int = Field(description="Cantidad disponible en el punto de venta.")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "product": {
+                    "code": "7701234567890",
+                    "category": "Bebidas",
+                    "features": {"marca": "Aqua", "presentacion": "600 ml"},
+                },
+                "price": 2500.0,
+                "available_quantity": 15,
+            }
+        }
+    )
+
+
+class SaleItemResponse(BaseModel):
+    product_code: str
+    quantity: int
+    unit_price: float
+    subtotal: float
+
+
+class SaleResponse(BaseModel):
+    id: int
+    products: list[SaleItemResponse]
+    total: float
+    mensaje: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": 1,
+                "products": [
+                    {"product_code": "7701234567890", "quantity": 2, "unit_price": 2500.0, "subtotal": 5000.0}
+                ],
+                "total": 5000.0,
+                "mensaje": "Venta registrada correctamente.",
+            }
+        }
+    )
+
+
+class ErrorResponse(BaseModel):
+    mensaje: str = Field(max_length=200, description="Descripción del error en español.")
+
+
+# ---------------------------------------------------------------------------
+# Internal entities (stored by the repository, never exposed directly)
+# ---------------------------------------------------------------------------
+class ProductRecord(BaseModel):
+    code: str
+    category: str
+    features: dict[str, str]
+    price: float
+
+
+class CashRegisterRecord(BaseModel):
+    id: int
+    cashier_id: int
+    is_open: bool
+
+
+class SaleLineRecord(BaseModel):
+    product_code: str
+    quantity: int
+    unit_price: float
+    subtotal: float
+
+
+class SaleRecord(BaseModel):
+    id: int | None = None
+    cash_register_id: int
+    cashier_id: int
+    lines: list[SaleLineRecord]
+    total: float
+    created_at: datetime

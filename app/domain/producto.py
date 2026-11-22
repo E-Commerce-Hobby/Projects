@@ -1,8 +1,9 @@
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+T = TypeVar("T")
 
 class ProductoRegistro(BaseModel):
     """Datos de entrada para registrar un producto (CA1, CA3, CA4)."""
@@ -52,3 +53,10 @@ class ErrorRespuesta(BaseModel):
     mensaje: str = Field(..., max_length=200)
     campos_faltantes: list[str] | None = None
     campos_invalidos: list[str] | None = None
+    
+    class RespuestaEstandar(BaseModel, Generic[T]):
+    """Formato estándar de respuesta del proyecto."""
+
+    success: bool
+    message: str
+    data: T | None = None
