@@ -4,11 +4,35 @@ from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
 from app.core.errors import ReglaNegocioError
-from app.domain.orden_schema import CalcularTotalRequest, CrearOrdenRequest
+from app.domain.orden_schema import (
+    ActualizarEstadoOrdenRequest,
+    CalcularTotalRequest,
+    CrearOrdenRequest,
+)
 from app.repositories import orden_repository
 
 TIMEOUT_CLIENTES_SEGUNDOS = 5.0
 TASA_IMPUESTO = Decimal("0.19")  # IVA estándar en Colombia (19%)
+
+EVENTOS_POR_ORIGEN: dict[str, set[str]] = {
+    "Pagos": {"pago aprobado", "pago rechazado"},
+    "Logística": {"envío despachado", "envío entregado"},
+}
+
+MAPEO_EVENTO_ESTADO: dict[str, str] = {
+    "pago aprobado": "pagada",
+    "pago rechazado": "pago rechazado",
+    "envío despachado": "enviada",
+    "envío entregado": "entregada",
+}
+
+TRANSICIONES_PERMITIDAS: dict[str, set[str]] = {
+    "pendiente de pago": {"pagada", "pago rechazado"},
+    "pagada": {"enviada"},
+    "enviada": {"entregada"},
+    "pago rechazado": set(),
+    "entregada": set(),
+}
 
 
 def _redondear_cop(valor: Decimal) -> int:
@@ -173,3 +197,98 @@ def consultar_orden(id_orden: str) -> dict:
             data=["id_orden"],
         )
     return orden
+
+
+def actualizar_estado_orden(
+    id_orden: str,
+    datos: ActualizarEstadoOrdenRequest,
+) -> dict:
+    """FUN-4.1.5: Actualiza el estado de una orden según notificaciones de Pagos o Logística (CA1-CA4)."""
+    fecha_hora = datetime.now(timezone.utc).isoformat()
+
+    # Validar correspondencia entre origen y evento (HTTP 400)
+    if datos.evento not in EVENTOS_POR_ORIGEN[datos.origen]:
+        motivo = (
+            f"El evento '{datos.evento}' no corresponde al origen '{datos.origen}'."
+        )
+        orden_repository.registrar_notificacion_rechazada(
+            {
+                "id_orden": id_orden,
+                "origen": datos.origen,
+                "evento": datos.evento,
+                "motivo": motivo,
+                "fecha_hora": fecha_hora,
+            }
+        )
+        raise ReglaNegocioError(
+            message=motivo,
+            status_code=400,
+            data={"origen": datos.origen, "evento": datos.evento},
+        )
+
+    # CA4: Orden inexistente -> rechaza (404), informa motivo y registra
+    orden = orden_repository.obtener_orden(id_orden)
+    if orden is None:
+        motivo = f"La orden '{id_orden}' no existe."
+        orden_repository.registrar_notificacion_rechazada(
+            {
+                "id_orden": id_orden,
+                "origen": datos.origen,
+                "evento": datos.evento,
+                "motivo": motivo,
+                "fecha_hora": fecha_hora,
+            }
+        )
+        raise ReglaNegocioError(
+            message=motivo,
+            status_code=404,
+            data=["id_orden"],
+        )
+
+    estado_anterior = orden["estado"]
+    estado_nuevo = MAPEO_EVENTO_ESTADO[datos.evento]
+
+    # CA2: Validar transición permitida -> si no, rechaza (409), conserva estado y registra
+    if estado_nuevo not in TRANSICIONES_PERMITIDAS.get(estado_anterior, set()):
+        motivo = (
+            f"Transición no permitida: no se puede pasar de '{estado_anterior}' a '{estado_nuevo}'."
+        )
+        orden_repository.registrar_notificacion_rechazada(
+            {
+                "id_orden": id_orden,
+                "origen": datos.origen,
+                "evento": datos.evento,
+                "estado_actual": estado_anterior,
+                "estado_solicitado": estado_nuevo,
+                "motivo": motivo,
+                "fecha_hora": fecha_hora,
+            }
+        )
+        raise ReglaNegocioError(
+            message=motivo,
+            status_code=409,
+            data={
+                "id_orden": id_orden,
+                "estado_actual": estado_anterior,
+                "estado_solicitado": estado_nuevo,
+            },
+        )
+
+    # CA1: Actualizar y guardar el nuevo estado
+    orden["estado"] = estado_nuevo
+    orden["actualizada_en"] = fecha_hora
+    orden_repository.guardar_orden(orden)
+
+    # CA3: Publicar evento de cambio de estado
+    evento_publicado = {
+        "id_orden": id_orden,
+        "estado_anterior": estado_anterior,
+        "estado_nuevo": estado_nuevo,
+        "fecha_hora": fecha_hora,
+    }
+    orden_repository.registrar_evento_orden(evento_publicado)
+
+    return {
+        "orden": orden,
+        "evento_publicado": evento_publicado,
+    }

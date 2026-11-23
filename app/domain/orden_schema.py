@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
-
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 class ItemOrdenRequest(BaseModel):
     """Producto y cantidad confirmada para crear la orden."""
@@ -46,4 +47,25 @@ class CalcularTotalRequest(BaseModel):
         default_factory=list,
         description="Códigos de descuento a aplicar si están vigentes en la fecha actual.",
         examples=[["DESC10"]],
+    )
+    
+class ActualizarEstadoOrdenRequest(BaseModel):
+    """Entrada para FUN-4.1.5 (notificación de Pagos o Logística)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    origen: Literal["Pagos", "Logística"] = Field(
+        ...,
+        description="Módulo que envía la notificación.",
+        examples=["Pagos"],
+    )
+    evento: Literal[
+        "pago aprobado",
+        "pago rechazado",
+        "envío despachado",
+        "envío entregado",
+    ] = Field(
+        ...,
+        description="Evento reportado por el módulo de origen.",
+        examples=["pago aprobado"],
     )

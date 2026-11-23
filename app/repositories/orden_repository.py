@@ -62,3 +62,29 @@ def guardar_orden(orden: dict) -> dict:
 
 def obtener_orden(id_orden: str) -> dict | None:
     return ordenes_db.get(id_orden)
+
+# Registro en memoria de eventos publicados (CA3) y notificaciones rechazadas (CA2, CA4)
+eventos_orden_db: list[dict] = []
+notificaciones_rechazadas_db: list[dict] = []
+
+
+def registrar_evento_orden(evento: dict) -> dict:
+    eventos_orden_db.append(evento)
+    return evento
+
+
+def listar_eventos_orden(id_orden: str | None = None) -> list[dict]:
+    if id_orden is None:
+        return list(eventos_orden_db)
+    return [e for e in eventos_orden_db if e["id_orden"] == id_orden]
+
+
+def registrar_notificacion_rechazada(registro: dict) -> dict:
+    notificaciones_rechazadas_db.append(registro)
+    return registro
+
+
+def listar_notificaciones_rechazadas(id_orden: str | None = None) -> list[dict]:
+    if id_orden is None:
+        return list(notificaciones_rechazadas_db)
+    return [r for r in notificaciones_rechazadas_db if r["id_orden"] == id_orden]
