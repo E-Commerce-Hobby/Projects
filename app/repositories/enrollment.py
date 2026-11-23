@@ -23,6 +23,19 @@ class EnrollmentRepository:
                 return enrollment
         return None
 
+    def get_active_by_client_and_event(self, client_id: int, event_id: int) -> Optional[dict]:
+        for enrollment in self._enrollments_db:
+            if (
+                enrollment["client_id"] == client_id
+                and enrollment["event_id"] == event_id
+                and enrollment["status"] == "confirmada"
+            ):
+                return enrollment
+        return None
+
+    def get_all(self) -> List[Dict]:
+        return list(self._enrollments_db)
+
     def update_status(self, enrollment_id: int, new_status: str, cancelled_at: datetime) -> Optional[dict]:
         enrollment = self.get_by_id(enrollment_id)
         if enrollment:
