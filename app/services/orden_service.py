@@ -292,3 +292,42 @@ def actualizar_estado_orden(
         "orden": orden,
         "evento_publicado": evento_publicado,
     }
+
+def notificar_incidencia_envio_orden(
+    id_orden: str,
+    numero_guia: str,
+    tipo_problema: str,
+    descripcion: str,
+    fecha_hora: str,
+) -> dict:
+    """HU-039 (CA3): Registra en la orden la notificación de incidencia enviada hacia Ventas."""
+    orden = orden_repository.obtener_orden(id_orden)
+    if orden is None:
+        raise ReglaNegocioError(
+            message=f"La orden '{id_orden}' no existe.",
+            status_code=404,
+            data=["id_orden"],
+        )
+
+    notificacion = {
+        "id_orden": id_orden,
+        "origen": "Logística",
+        "destino": "Ventas",
+        "evento": "incidencia de envío",
+        "numero_guia": numero_guia,
+        "tipo_problema": tipo_problema,
+        "descripcion": descripcion,
+        "estado_orden": orden.get("estado"),
+        "fecha_hora": fecha_hora,
+    }
+
+    orden["incidencia_envio"] = {
+        "numero_guia": numero_guia,
+        "tipo_problema": tipo_problema,
+        "descripcion": descripcion,
+        "fecha_hora": fecha_hora,
+    }
+    orden["actualizada_en"] = fecha_hora
+    orden.setdefault("notificaciones_ventas", []).append(notificacion)
+
+    return notificacion
