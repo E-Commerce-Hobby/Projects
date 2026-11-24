@@ -48,18 +48,30 @@ class InvoiceGenerateRequest(BaseModel):
     )
 
 
+# Actualizaciones en app/domain/invoice.py para HU-036
+# En InvoiceResponseData:
 class InvoiceResponseData(BaseModel):
     invoice_id: int = Field(..., description="ID único de la factura generada", examples=[1])
     sale_id: int = Field(..., description="ID de la venta asociada", examples=[501])
     origin: str = Field(..., description="Origen de la venta (PAGOS o POS)", examples=["PAGOS"])
-    status: Literal["generado", "aceptada", "rechazada"] = Field(
+    status: Literal["generado", "aceptada", "rechazada", "requiere revisión manual"] = Field(
         ...,
         description="Estado actual de la factura",
-        examples=["generado"]
+        examples=["aceptada"]
+    )
+    retry_count: int = Field(
+        default=0,
+        description="Cantidad de reintentos automáticos realizados (máximo 3)",
+        examples=[1]
+    )
+    corrected_fields: List[str] = Field(
+        default_factory=list,
+        description="Campos corregidos automáticamente según el motivo de rechazo",
+        examples=[["acquirer.document_number"]]
     )
     pending_resend: bool = Field(
         default=False,
-        description="Indica si quedó marcada para reenvío por timeout del proveedor (CA8)"
+        description="Indica si quedó marcada para reenvío por timeout del proveedor"
     )
     issuer: IssuerInfo
     acquirer: AcquirerInfo
@@ -67,8 +79,8 @@ class InvoiceResponseData(BaseModel):
     subtotal: float = Field(..., description="Subtotal antes de impuestos en COP", examples=[50000.0])
     total_tax: float = Field(..., description="Total de impuestos en COP", examples=[9500.0])
     total_amount: float = Field(..., description="Valor total de la factura en COP", examples=[59500.0])
-    rejection_code: Optional[str] = Field(None, description="Código de rechazo del proveedor (CA7)")
-    rejection_reason: Optional[str] = Field(None, description="Descripción del motivo de rechazo (CA7)")
+    rejection_code: Optional[str] = Field(None, description="Código de rechazo del proveedor", examples=["DIAN-099"])
+    rejection_reason: Optional[str] = Field(None, description="Descripción del motivo de rechazo")
     created_at: datetime
 
 

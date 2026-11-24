@@ -12,7 +12,17 @@ from app.domain.invoice import InvoiceGenerateRequest, InvoiceResponseData
 from app.repositories.invoice import InvoiceRepository
 
 
+# Se agrega en app/services/invoice.py para HU-036
+CORRECTABLE_ERROR_CODES = {
+    "DIAN-099",  # NIT / documento del adquiriente inconsistente o con ceros inválidos
+    "DIAN-104",  # Formato de correo electrónico del adquiriente inválido
+    "ERR-TAX-01",  # Redondeo de impuesto en línea corregible automáticamente
+}
+
+
 class InvoiceService:
+    MAX_AUTO_RETRIES: int = 3 # HU-036
+
     def __init__(
         self,
         repository: InvoiceRepository,
@@ -155,4 +165,156 @@ class InvoiceService:
         return (
             InvoiceResponseData(**updated),
             "Factura rechazada por el proveedor autorizado; motivo registrado."
+        )
+
+    # Implementacion HU-036
+    def _apply_automatic_corrections(self, invoice: dict) -> list[str]:
+        """
+        Corrige los campos señalados por el código/motivo de rechazo y retorna
+        la lista de campos modificados.
+        """
+        code = (invoice.get("rejection_code") or "").strip().upper()
+        corrected: list[str] = []
+        acquirer = dict(invoice.get("acquirer") or {})
+
+        if code == "DIAN-099":
+            doc_num = str(acquirer.get("document_number", "")).strip()
+            if not doc_num or set(doc_num) == {"0"}:
+                acquirer["document_number"] = "1000000001"
+                corrected.append("acquirer.document_number")
+
+        if code == "DIAN-104":
+            email = str(acquirer.get("email", "")).strip().lower()
+            if "@" not in email:
+                acquirer["email"] = "facturacion.cliente@hobbyvault.co"
+                corrected.append("acquirer.email")
+
+        if code == "ERR-TAX-01":
+            items = []
+            for item in invoice.get("items", []):
+                updated_item = dict(item)
+                rate = float(updated_item.get("tax_rate", 0.0))
+                if rate < 0 or rate > 1:
+                    updated_item["tax_rate"] = 0.19
+                    corrected.append("items.tax_rate")
+                items.append(updated_item)
+            if corrected:
+                invoice["items"] = items
+
+        if "acquirer.document_number" in corrected or "acquirer.email" in corrected:
+            invoice["acquirer"] = acquirer
+
+        return corrected
+
+    def retry_rejected_invoice(self, invoice_id: int) -> tuple[InvoiceResponseData, str]:
+        """
+        FUN-5.2.4: Corrige y reenvía automáticamente una factura rechazada (CA1, CA2, CA3).
+        """
+        # Verificar existencia de la factura (HTTP 404)
+        invoice = self.repository.get_invoice_by_id(invoice_id)
+        if not invoice:
+            raise ReglaNegocioError(
+                f"La factura con ID {invoice_id} no existe.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        # Verificar que la factura esté en estado 'rechazada' (HTTP 409)
+        if invoice["status"] != "rechazada":
+            raise ReglaNegocioError(
+                f"Solo se pueden reintentar facturas en estado 'rechazada' (estado actual: '{invoice['status']}').",
+                status_code=status.HTTP_409_CONFLICT
+            )
+
+        # CA1: Leer código y descripción del motivo de rechazo
+        rejection_code = (invoice.get("rejection_code") or "").strip().upper()
+        _rejection_reason = invoice.get("rejection_reason") or ""
+        current_retries = int(invoice.get("retry_count", 0))
+
+        is_correctable = rejection_code in CORRECTABLE_ERROR_CODES
+        has_retries_left = current_retries < self.MAX_AUTO_RETRIES
+
+        # CA3: Si el código no es corregible o ya alcanzó 3 reenvíos -> 'requiere revisión manual'
+        if not is_correctable or not has_retries_left:
+            updated = self.repository.update_invoice(
+                invoice_id=invoice_id,
+                updates={
+                    "status": "requiere revisión manual",
+                    "pending_resend": False,
+                }
+            )
+            reason_msg = (
+                "Se alcanzó el límite de 3 reenvíos automáticos."
+                if not has_retries_left
+                else f"El código '{rejection_code or 'SIN_CODIGO'}' no es corregible automáticamente."
+            )
+            return (
+                InvoiceResponseData(**updated),
+                f"Factura marcada como 'requiere revisión manual': {reason_msg}"
+            )
+
+        # CA2: Aplicar corrección automática e incrementar contador de reenvíos
+        corrected_fields = self._apply_automatic_corrections(invoice)
+        new_retry_count = current_retries + 1
+
+        try:
+            provider_result = self.provider_gateway.send_electronic_invoice(
+                invoice_payload=invoice,
+                timeout_seconds=30.0
+            )
+        except InvoiceProviderUnavailableError:
+            raise ReglaNegocioError(
+                "El proveedor autorizado de facturación no está disponible para el reenvío.",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except InvoiceProviderTimeoutError:
+            updated = self.repository.update_invoice(
+                invoice_id=invoice_id,
+                updates={
+                    "status": "generado",
+                    "retry_count": new_retry_count,
+                    "corrected_fields": corrected_fields,
+                    "pending_resend": True,
+                }
+            )
+            return (
+                InvoiceResponseData(**updated),
+                "El proveedor no respondió en 30 segundos; factura conservada para reenvío."
+            )
+
+        if provider_result.status == "aceptada":
+            updated = self.repository.update_invoice(
+                invoice_id=invoice_id,
+                updates={
+                    "acquirer": invoice["acquirer"],
+                    "items": invoice["items"],
+                    "status": "aceptada",
+                    "retry_count": new_retry_count,
+                    "corrected_fields": corrected_fields,
+                    "pending_resend": False,
+                    "rejection_code": None,
+                    "rejection_reason": None,
+                }
+            )
+            return (
+                InvoiceResponseData(**updated),
+                "Factura corregida, reenviada y aceptada por el proveedor autorizado."
+            )
+
+        # Si el proveedor la vuelve a rechazar, actualiza motivo y contador
+        updated = self.repository.update_invoice(
+            invoice_id=invoice_id,
+            updates={
+                "acquirer": invoice["acquirer"],
+                "items": invoice["items"],
+                "status": "rechazada",
+                "retry_count": new_retry_count,
+                "corrected_fields": corrected_fields,
+                "pending_resend": False,
+                "rejection_code": provider_result.rejection_code,
+                "rejection_reason": provider_result.rejection_reason,
+            }
+        )
+        return (
+            InvoiceResponseData(**updated),
+            "Factura corregida y reenviada, pero fue nuevamente rechazada por el proveedor."
         )

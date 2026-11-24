@@ -22,9 +22,12 @@ class InvoiceRepository:
         return self._sales_db.get(sale_id)
 
     # --- Operaciones CRUD sobre Facturas ---
+    # En InvoiceRepository.create_invoice (app/repositories/invoice.py) para HU-036
     def create_invoice(self, invoice_data: dict) -> dict:
         new_invoice = {
             "invoice_id": self._invoice_id_counter,
+            "retry_count": 0,
+            "corrected_fields": [],
             **invoice_data
         }
         self._invoices_db.append(new_invoice)
