@@ -3,6 +3,7 @@ from app.domain.envio_schema import (
     ActualizarEstadoEnvioRequest,
     ConfirmarUbicacionRequest,
     GenerarGuiaRequest,
+    RegistrarProblemaEnvioRequest,
 )
 from app.repositories import envio_repository
 from app.services.envio_service import (
@@ -10,11 +11,91 @@ from app.services.envio_service import (
     confirmar_ubicacion_despacho,
     consultar_envio,
     generar_guia_envio,
+    registrar_problema_envio,
     seleccionar_ubicacion_despacho,
 )
 
 router = APIRouter(prefix="/api/v1/envios", tags=["Envíos y Logística"])
 
+@router.post(
+    "/problemas",
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar problema de envío: pérdida o devolución (HU-039: FUN-7.1.5)",
+    description=(
+        "Identifica el pedido por número de guía, registra el problema ('pérdida' o 'devolución') "
+        "con descripción de máximo 500 caracteres, operador y fecha/hora, cambia el envío a "
+        "'con incidencia' e informa a Ventas mediante la API Estados Orden."
+    ),
+    responses={
+        201: {
+            "description": "Problema de envío registrado e incidencia notificada a Ventas",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "message": "Problema de envío registrado exitosamente.",
+                        "data": {
+                            "problema": {
+                                "id_problema": "INC-A1B2C3D4",
+                                "id_orden": "ORD-A1B2C3D4",
+                                "numero_guia": "SRV-1234567890",
+                                "tipo_problema": "pérdida",
+                                "descripcion": "Paquete extraviado en tránsito.",
+                                "operador": "OP-LOG-01",
+                                "fecha_hora": "2026-11-24T00:35:00+00:00",
+                            },
+                            "estado_envio": "con incidencia",
+                        },
+                    }
+                }
+            },
+        },
+        400: {
+            "description": "Tipo de problema inválido o descripción fuera de rango (> 500 caracteres)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "message": "Tipo de problema inválido: debe ser 'pérdida' o 'devolución'.",
+                        "data": ["tipo_problema"],
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Número de guía inexistente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "message": "No existe ningún envío registrado con el número de guía 'SRV-NOEXISTE'.",
+                        "data": ["numero_guia"],
+                    }
+                }
+            },
+        },
+    },
+)
+def crear_problema_envio(datos: RegistrarProblemaEnvioRequest):
+    resultado = registrar_problema_envio(datos)
+    return {
+        "success": True,
+        "message": "Problema de envío registrado exitosamente.",
+        "data": resultado,
+    }
+
+
+@router.get(
+    "/problemas",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar problemas de envío registrados (HU-039)",
+)
+def obtener_problemas_envio(numero_guia: str | None = None):
+    return {
+        "success": True,
+        "message": "Problemas de envío consultados exitosamente.",
+        "data": envio_repository.listar_problemas_envio(numero_guia),
+    }
 
 @router.get(
     "/{id_orden}/ubicaciones-disponibles",

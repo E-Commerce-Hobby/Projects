@@ -1,15 +1,20 @@
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime, timezone
+from uuid import uuid4
 
 from app.core.errors import ReglaNegocioError
 from app.domain.envio_schema import (
     ActualizarEstadoEnvioRequest,
     ConfirmarUbicacionRequest,
     GenerarGuiaRequest,
+    RegistrarProblemaEnvioRequest,
 )
 from app.domain.orden_schema import ActualizarEstadoOrdenRequest
 from app.repositories import envio_repository, orden_repository
-from app.services.orden_service import actualizar_estado_orden
+from app.services.orden_service import (
+    actualizar_estado_orden,
+    notificar_incidencia_envio_orden,
+)
 
 TIMEOUT_TRANSPORTADORA_SEGUNDOS = 10.0
 
@@ -346,4 +351,80 @@ def actualizar_estado_envio(datos: ActualizarEstadoEnvioRequest) -> dict:
             else orden_repository.obtener_orden(id_orden)["estado"]
         ),
         "envio": envio,
+    }
+
+TIPOS_PROBLEMA_PERMITIDOS: set[str] = {"pérdida", "devolución"}
+MAX_LONGITUD_DESCRIPCION_PROBLEMA = 500
+
+
+def registrar_problema_envio(datos: RegistrarProblemaEnvioRequest) -> dict:
+    """FUN-7.1.5 (HU-039 CA1-CA4): Registra un problema de pérdida o devolución en un envío."""
+    numero_guia = datos.numero_guia.strip()
+    tipo_norm = datos.tipo_problema.strip().lower()
+    descripcion = datos.descripcion.strip()
+    operador = datos.operador.strip()
+
+    # CA4: Validar tipo de problema permitido
+    if tipo_norm not in TIPOS_PROBLEMA_PERMITIDOS:
+        raise ReglaNegocioError(
+            message="Tipo de problema inválido: debe ser 'pérdida' o 'devolución'.",
+            status_code=400,
+            data=["tipo_problema"],
+        )
+
+    # CA2: Validar descripción no vacía y máximo 500 caracteres
+    if not descripcion or len(descripcion) > MAX_LONGITUD_DESCRIPCION_PROBLEMA:
+        raise ReglaNegocioError(
+            message="La descripción es obligatoria y debe tener máximo 500 caracteres.",
+            status_code=400,
+            data=["descripcion"],
+        )
+
+    # CA1 y CA4: Identificar el pedido asociado a la guía
+    envio = envio_repository.obtener_envio_por_guia(numero_guia)
+    if envio is None:
+        raise ReglaNegocioError(
+            message=f"No existe ningún envío registrado con el número de guía '{numero_guia}'.",
+            status_code=404,
+            data=["numero_guia"],
+        )
+
+    id_orden = envio["id_orden"]
+    fecha_hora = datetime.now(timezone.utc).isoformat()
+
+    # CA2: Guardar tipo, descripción, operador y fecha y hora
+    problema = {
+        "id_problema": f"INC-{uuid4().hex[:8].upper()}",
+        "id_orden": id_orden,
+        "numero_guia": numero_guia,
+        "tipo_problema": tipo_norm,
+        "descripcion": descripcion,
+        "operador": operador,
+        "fecha_hora": fecha_hora,
+    }
+    envio_repository.guardar_problema_envio(problema)
+
+    # CA3: Pasar el envío a 'con incidencia'
+    envio["estado_envio"] = "con incidencia"
+    envio["fecha_hora_estado"] = fecha_hora
+    envio["actualizado_en"] = fecha_hora
+    envio.setdefault("historial_estados", []).append(
+        {"estado": "con incidencia", "fecha_hora": fecha_hora}
+    )
+    envio.setdefault("problemas", []).append(problema)
+    envio_repository.guardar_envio(envio)
+
+    # CA3: Informar la situación a Ventas mediante la API Estados Orden
+    notificacion_ventas = notificar_incidencia_envio_orden(
+        id_orden=id_orden,
+        numero_guia=numero_guia,
+        tipo_problema=tipo_norm,
+        descripcion=descripcion,
+        fecha_hora=fecha_hora,
+    )
+
+    return {
+        "problema": problema,
+        "estado_envio": envio["estado_envio"],
+        "notificacion_ventas": notificacion_ventas,
     }

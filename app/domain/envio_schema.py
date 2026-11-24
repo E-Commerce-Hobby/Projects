@@ -1,8 +1,7 @@
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
+
 
 class ConfirmarUbicacionRequest(BaseModel):
     """Entrada opcional para FUN-7.1.4 (CA2): confirmar la ubicación sugerida o una elegible."""
@@ -57,6 +56,7 @@ class GenerarGuiaRequest(BaseModel):
         examples=["Calle 45 # 28-15, Bucaramanga, Santander"],
     )
 
+
 class ActualizarEstadoEnvioRequest(BaseModel):
     """Entrada para FUN-7.1.3 (actualización de estado enviada por la transportadora)."""
 
@@ -81,4 +81,37 @@ class ActualizarEstadoEnvioRequest(BaseModel):
         description="Fecha y hora del evento reportado en formato ISO 8601.",
         examples=["2026-11-24T00:15:00+00:00"],
     )
-    
+
+
+class RegistrarProblemaEnvioRequest(BaseModel):
+    """Entrada para FUN-7.1.5 (HU-039): registro de problema de envío (pérdida o devolución)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    numero_guia: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Número de guía del envío afectado.",
+        examples=["SRV-1234567890"],
+    )
+    tipo_problema: str = Field(
+        ...,
+        min_length=1,
+        max_length=40,
+        description="Tipo de problema reportado ('pérdida' o 'devolución').",
+        examples=["pérdida"],
+    )
+    descripcion: str = Field(
+        ...,
+        min_length=1,
+        description="Descripción detallada del problema (máximo 500 caracteres).",
+        examples=["Paquete extraviado durante el tránsito entre centro de acopio y destino."],
+    )
+    operador: str = Field(
+        default="Operador logístico",
+        min_length=1,
+        max_length=80,
+        description="Nombre o identificador del operador logístico que registra la incidencia.",
+        examples=["OP-LOG-01"],
+    )

@@ -88,3 +88,19 @@ def listar_actualizaciones_envio_rechazadas(numero_guia: str | None = None) -> l
     return [
         r for r in actualizaciones_envio_rechazadas_db if r["numero_guia"] == numero_guia
     ]
+
+# Registro en memoria de problemas/incidencias de envío (HU-039)
+problemas_envio_db: list[dict] = []
+
+
+def guardar_problema_envio(problema: dict) -> dict:
+    """Guarda un problema de envío registrado por el operador logístico (CA2)."""
+    problemas_envio_db.append(problema)
+    return problema
+
+
+def listar_problemas_envio(numero_guia: str | None = None) -> list[dict]:
+    """Lista los problemas registrados, opcionalmente filtrados por número de guía."""
+    if numero_guia is None:
+        return list(problemas_envio_db)
+    return [p for p in problemas_envio_db if p["numero_guia"] == numero_guia]
