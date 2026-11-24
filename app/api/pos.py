@@ -1,13 +1,15 @@
-"""POS endpoints: barcode search and counter sale registration."""
+"""POS endpoints: barcode search, counter sale registration and discounts."""
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from app.domain.pos import (
+    ApplyDiscountRequest,
     ErrorResponse,
     ProductSearchResponse,
     SaleCreateRequest,
+    SaleDiscountResponse,
     SaleResponse,
 )
 from app.repositories.pos_repository import PosRepository
@@ -99,3 +101,53 @@ def register_sale(
     service: Annotated[PosService, Depends(get_pos_service)],
 ) -> SaleResponse:
     return service.register_sale(payload)
+
+
+@router.post(
+    "/sales/{sale_id}/discounts",
+    response_model=SaleDiscountResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Aplicar descuento a una venta de mostrador (HU-031: FUN-4.2.3)",
+    description=(
+        "Aplica un descuento existente y vigente (porcentaje o valor fijo) a una venta "
+        "registrada en POS, recalcula el total asegurando que nunca sea menor que 0 y "
+        "evita aplicar el mismo descuento dos veces."
+    ),
+    responses={
+        400: {
+            "model": ErrorResponse,
+            "description": "ID de descuento vacío o formato inválido.",
+            "content": {
+                "application/json": {
+                    "example": {"mensaje": "El ID de descuento no puede estar vacío."}
+                }
+            },
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "La venta o el descuento no existe.",
+            "content": {
+                "application/json": {
+                    "example": {"mensaje": "El descuento 'DESC999' no existe."}
+                }
+            },
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "Descuento fuera de vigencia o ya aplicado a esta venta.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "mensaje": "El descuento 'DESC10' ya fue aplicado a la venta 1."
+                    }
+                }
+            },
+        },
+    },
+)
+def apply_discount_to_sale(
+    sale_id: Annotated[int, Path(gt=0, description="ID de la venta de mostrador.")],
+    payload: ApplyDiscountRequest,
+    service: Annotated[PosService, Depends(get_pos_service)],
+) -> SaleDiscountResponse:
+    return service.apply_discount(sale_id, payload)
