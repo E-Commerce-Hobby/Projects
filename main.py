@@ -9,6 +9,7 @@ from app.api.cliente_router import router as cliente_router
 from app.api.disponibilidad_router import router as disponibilidad_router
 from app.api.enrollment import router as enrollment_router
 from app.api.event import router as event_router
+from app.api.reminder import router as reminder_router
 from app.api.inventory import router as inventory_router
 from app.api.pos import router as pos_router
 from app.api.product_router import router as product_router
@@ -66,6 +67,7 @@ app.include_router(carrito_router)                           # HU-009
 app.include_router(orden_router)                             # HU-010
 app.include_router(event_router)                             # HU-017
 app.include_router(enrollment_router)                        # HU-037 / Inscripciones
+app.include_router(reminder_router)                          # HU-038
 app.include_router(pos_router, prefix="/api/v1")             # POS
 app.include_router(receipt_router, prefix="/api/v1")         # Comprobante POS
 
