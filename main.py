@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from app.api.orden_router import router as orden_router
+from app.api.envio_router import router as envio_router
 
 from app.api import productos
 from app.api.auth_router import router as auth_router
@@ -64,6 +65,8 @@ app.include_router(cliente_router)                           # HU-007
 app.include_router(auth_router)                              # HU-008 / HU-029 / HU-030
 app.include_router(carrito_router)                           # HU-009
 app.include_router(orden_router)                             # HU-010
+app.include_router(envio_router)                             # HU-020
+
 app.include_router(event_router)                             # HU-017
 app.include_router(enrollment_router)                        # HU-037 / Inscripciones
 app.include_router(pos_router, prefix="/api/v1")             # POS
