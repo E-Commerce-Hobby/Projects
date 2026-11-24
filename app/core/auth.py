@@ -1,6 +1,6 @@
 # app/core/auth.py
 from typing import Optional
-from fastapi import Header, status
+from fastapi import Header, Depends, status
 from app.core.errors import ReglaNegocioError
 
 
@@ -32,3 +32,19 @@ def get_current_client_id(authorization: Optional[str] = Header(None)) -> int:
         )
 
     return int(client_part)
+
+def require_staff_role(
+    _client_id: int = Depends(get_current_client_id),
+    x_user_role: Optional[str] = Header(default="administrador", alias="X-User-Role"),
+) -> str:
+    """
+    Valida que el usuario autenticado tenga rol 'administrador' o 'cajero' (CA7).
+    - Si el rol no está en {'administrador', 'cajero'}, lanza ReglaNegocioError con HTTP 403.
+    """
+    role_normalized = (x_user_role or "").strip().lower()
+    if role_normalized not in {"administrador", "cajero"}:
+        raise ReglaNegocioError(
+            "Acceso denegado: se requiere rol 'administrador' o 'cajero' para consultar por orden.",
+            status_code=status.HTTP_403_FORBIDDEN
+        )
+    return role_normalized

@@ -1,9 +1,13 @@
 # app/api/invoice.py
-from fastapi import APIRouter, Path, status
+from fastapi import APIRouter, Path, status, Depends
+from app.core.auth import require_staff_role
 from app.core.invoice_provider_gateway import invoice_provider_gateway
 from app.domain.invoice import (
     InvoiceGenerateRequest,
     InvoiceStandardResponse,
+    FiscalInfoStandardResponse,
+    FiscalInfoUpdateRequest,
+    OrderFiscalQueryStandardResponse,
 )
 from app.repositories.invoice import invoice_repository
 from app.services.invoice import InvoiceService
@@ -289,4 +293,159 @@ def retry_invoice_endpoint(
         success=True,
         data=updated_invoice,
         message=msg
+    )
+
+@router.patch(
+    "/{invoice_id}/fiscal",
+    response_model=FiscalInfoStandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Registrar identificador fiscal y estado de factura (HU-035 / FUN-5.2.3)",
+    description=(
+        "Almacena el identificador fiscal (no vacío, ej. CUFE) y el estado de validación "
+        "('aceptada' o 'rechazada') asociados a una factura existente."
+    ),
+    responses={
+        200: {
+            "description": "CA1 - Información fiscal registrada exitosamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "data": {
+                            "invoice_id": 1,
+                            "sale_id": 501,
+                            "fiscal_identifier": "CUFE-ABC123456789",
+                            "status": "aceptada",
+                            "updated_at": "2026-11-24T01:35:00Z"
+                        },
+                        "message": "Información fiscal registrada exitosamente."
+                    }
+                }
+            }
+        },
+        400: {
+            "description": "CA2 - Identificador vacío o estado inválido ('aceptada' o 'rechazada')",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Campos inválidos: fiscal_identifier."
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "CA3 - La factura no existe",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "La factura con ID 999 no existe."
+                    }
+                }
+            }
+        }
+    }
+)
+def register_fiscal_info_endpoint(
+    payload: FiscalInfoUpdateRequest,
+    invoice_id: int = Path(..., gt=0, description="ID de la factura", examples=[1]),
+):
+    updated_data = invoice_service.register_fiscal_info(invoice_id=invoice_id, payload=payload)
+    return FiscalInfoStandardResponse(
+        success=True,
+        data=updated_data,
+        message="Información fiscal registrada exitosamente."
+    )
+
+
+@router.get(
+    "/by-order/{order_id}",
+    response_model=OrderFiscalQueryStandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Consultar información fiscal de una factura por ID de orden (HU-035 / FUN-5.2.5)",
+    description=(
+        "Consulta el ID de factura, identificador fiscal y estado actual asociado a un ID de orden. "
+        "Requiere autenticación y rol 'administrador' o 'cajero'."
+    ),
+    responses={
+        200: {
+            "description": "CA4 - Factura asociada encontrada",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "data": {
+                            "order_id": 501,
+                            "invoice_id": 1,
+                            "fiscal_identifier": "CUFE-ABC123456789",
+                            "status": "aceptada"
+                        },
+                        "message": "Información fiscal consultada exitosamente."
+                    }
+                }
+            }
+        },
+        401: {
+            "description": "Usuario no autenticado (token ausente, inválido o vencido)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Usuario no autenticado: token ausente o formato inválido."
+                    }
+                }
+            }
+        },
+        403: {
+            "description": "CA7 - El usuario no tiene rol 'administrador' ni 'cajero'",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Acceso denegado: se requiere rol 'administrador' o 'cajero' para consultar por orden."
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "CA5 / CA6 - La orden no tiene factura asociada o la orden no existe",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "CA5_SinFactura": {
+                            "summary": "CA5 - Orden existe pero sin factura asociada",
+                            "value": {
+                                "success": False,
+                                "data": None,
+                                "message": "La orden no tiene factura asociada"
+                            }
+                        },
+                        "CA6_OrdenNoExiste": {
+                            "summary": "CA6 - La orden no existe",
+                            "value": {
+                                "success": False,
+                                "data": None,
+                                "message": "La orden no existe"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
+def get_invoice_by_order_endpoint(
+    order_id: int = Path(..., gt=0, description="ID de la orden a consultar", examples=[501]),
+    _role: str = Depends(require_staff_role),
+):
+    query_data = invoice_service.get_invoice_by_order(order_id=order_id)
+    return OrderFiscalQueryStandardResponse(
+        success=True,
+        data=query_data,
+        message="Información fiscal consultada exitosamente."
     )
