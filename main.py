@@ -16,6 +16,9 @@ from app.api.pos import router as pos_router
 from app.api.product_router import router as product_router
 from app.api.receipt import router as receipt_router
 from app.api.reserva_router import router as reserva_router
+from app.api.sincronizacion_inventario_router import (
+    router as sincronizacion_inventario_router,
+)
 from app.core.errors import (
     RecursoNoEncontradoError,
     ReglaNegocioError,
@@ -62,6 +65,7 @@ app.include_router(product_router, prefix="/api/v1")         # HU-002
 app.include_router(inventory_router, prefix="/api/v1")       # HU-003
 app.include_router(reserva_router)                           # HU-004
 app.include_router(disponibilidad_router)                    # HU-005
+app.include_router(sincronizacion_inventario_router)         # HU-006
 app.include_router(cliente_router)                           # HU-007
 app.include_router(auth_router)                              # HU-008 / HU-029 / HU-030
 app.include_router(carrito_router)                           # HU-009
