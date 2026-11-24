@@ -194,3 +194,99 @@ def send_invoice_endpoint(
         data=updated_invoice,
         message=msg
     )
+
+# Agregar en app/api/invoice.py
+@router.post(
+    "/{invoice_id}/retry",
+    response_model=InvoiceStandardResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Corregir y reenviar automáticamente una factura rechazada (HU-036 / FUN-5.2.4)",
+    description=(
+        "Procesa una factura en estado 'rechazada'. Si el código de rechazo es corregible y tiene "
+        "menos de 3 reenvíos, corrige los campos afectados y reenvía al proveedor autorizado. "
+        "Si no es corregible o ya tiene 3 reenvíos, marca la factura como 'requiere revisión manual'."
+    ),
+    responses={
+        200: {
+            "description": "CA1, CA2, CA3 - Reenvío procesado o factura marcada como 'requiere revisión manual'",
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "CA2_CorregidaYAceptada": {
+                            "summary": "CA2 - Error corregible, reenviada y aceptada",
+                            "value": {
+                                "success": True,
+                                "data": {
+                                    "invoice_id": 1,
+                                    "sale_id": 501,
+                                    "status": "aceptada",
+                                    "retry_count": 1,
+                                    "corrected_fields": ["acquirer.document_number"]
+                                },
+                                "message": "Factura corregida, reenviada y aceptada por el proveedor autorizado."
+                            }
+                        },
+                        "CA3_RevisionManual": {
+                            "summary": "CA3 - Error no corregible o 3 reenvíos alcanzados",
+                            "value": {
+                                "success": True,
+                                "data": {
+                                    "invoice_id": 1,
+                                    "sale_id": 501,
+                                    "status": "requiere revisión manual",
+                                    "retry_count": 3
+                                },
+                                "message": "Factura marcada como 'requiere revisión manual': Se alcanzó el límite de 3 reenvíos automáticos."
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        404: {
+            "description": "Factura inexistente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "La factura con ID 999 no existe."
+                    }
+                }
+            }
+        },
+        409: {
+            "description": "La factura no está en estado 'rechazada'",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Solo se pueden reintentar facturas en estado 'rechazada' (estado actual: 'aceptada')."
+                    }
+                }
+            }
+        },
+        503: {
+            "description": "Proveedor autorizado no disponible",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "El proveedor autorizado de facturación no está disponible para el reenvío."
+                    }
+                }
+            }
+        }
+    }
+)
+def retry_invoice_endpoint(
+    invoice_id: int = Path(..., gt=0, description="ID de la factura rechazada a procesar", examples=[1])
+):
+    updated_invoice, msg = invoice_service.retry_rejected_invoice(invoice_id=invoice_id)
+    return InvoiceStandardResponse(
+        success=True,
+        data=updated_invoice,
+        message=msg
+    )
