@@ -14,6 +14,7 @@ from app.api.reminder import router as reminder_router
 from app.api.shipping import router as shipping_router
 from app.api.invoice import router as invoice_router
 from app.api.inventory_retry import router as inventory_retry_router
+from app.api.rejected_payment import router as rejected_payment_router
 from app.api.inventory import router as inventory_router
 from app.api.pos import router as pos_router
 from app.api.product_router import router as product_router
@@ -78,6 +79,7 @@ app.include_router(shipping_router)                          # HU-019
 app.include_router(envio_router)                             # HU-020
 app.include_router(inventory_retry_router)                   # HU-027
 app.include_router(event_router)                             # HU-017
+app.include_router(rejected_payment_router)                  # HU-033
 app.include_router(enrollment_router)                        # HU-037 / Inscripciones
 app.include_router(reminder_router)                          # HU-038
 app.include_router(pos_router, prefix="/api/v1")             # POS
