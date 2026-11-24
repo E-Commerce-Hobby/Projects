@@ -64,3 +64,27 @@ def solicitar_guia_transportadora(payload: dict) -> dict:
         "numero_guia": numero_guia,
         "transportadora": payload["transportadora"],
     }
+
+# Registro en memoria de actualizaciones de envío rechazadas (HU-021: CA4)
+actualizaciones_envio_rechazadas_db: list[dict] = []
+
+
+def obtener_envio_por_guia(numero_guia: str) -> dict | None:
+    """Busca un registro de envío por su número de guía (CA1)."""
+    for envio in envios_db.values():
+        if envio.get("numero_guia") == numero_guia:
+            return envio
+    return None
+
+
+def registrar_actualizacion_envio_rechazada(registro: dict) -> dict:
+    actualizaciones_envio_rechazadas_db.append(registro)
+    return registro
+
+
+def listar_actualizaciones_envio_rechazadas(numero_guia: str | None = None) -> list[dict]:
+    if numero_guia is None:
+        return list(actualizaciones_envio_rechazadas_db)
+    return [
+        r for r in actualizaciones_envio_rechazadas_db if r["numero_guia"] == numero_guia
+    ]

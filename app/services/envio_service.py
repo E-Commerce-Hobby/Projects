@@ -2,8 +2,14 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from datetime import datetime, timezone
 
 from app.core.errors import ReglaNegocioError
-from app.domain.envio_schema import ConfirmarUbicacionRequest, GenerarGuiaRequest
+from app.domain.envio_schema import (
+    ActualizarEstadoEnvioRequest,
+    ConfirmarUbicacionRequest,
+    GenerarGuiaRequest,
+)
+from app.domain.orden_schema import ActualizarEstadoOrdenRequest
 from app.repositories import envio_repository, orden_repository
+from app.services.orden_service import actualizar_estado_orden
 
 TIMEOUT_TRANSPORTADORA_SEGUNDOS = 10.0
 
@@ -251,3 +257,93 @@ def consultar_envio(id_orden: str) -> dict:
             data=["id_orden"],
         )
     return envio
+
+ESTADOS_ENVIO_PERMITIDOS: set[str] = {"despachado", "en tránsito", "entregado"}
+
+MAPEO_ESTADO_ENVIO_A_EVENTO_ORDEN: dict[str, str] = {
+    "despachado": "envío despachado",
+    "entregado": "envío entregado",
+}
+
+
+def actualizar_estado_envio(datos: ActualizarEstadoEnvioRequest) -> dict:
+    """FUN-7.1.3 (CA1-CA4): Actualiza el estado de un envío según reporte de la transportadora."""
+    numero_guia = datos.numero_guia.strip()
+    estado_norm = datos.estado.strip().lower()
+    fecha_hora_iso = datos.fecha_hora.isoformat()
+    registrado_en = datetime.now(timezone.utc).isoformat()
+
+    # CA4: Validar que el estado recibido pertenezca a la lista permitida (HTTP 400 + registro)
+    if estado_norm not in ESTADOS_ENVIO_PERMITIDOS:
+        motivo = (
+            f"Estado de envío no permitido: '{datos.estado}'. "
+            "Valores válidos: despachado, en tránsito, entregado."
+        )
+        envio_repository.registrar_actualizacion_envio_rechazada(
+            {
+                "numero_guia": numero_guia,
+                "estado_recibido": datos.estado,
+                "fecha_hora": fecha_hora_iso,
+                "motivo": motivo,
+                "registrado_en": registrado_en,
+            }
+        )
+        raise ReglaNegocioError(
+            message=motivo,
+            status_code=400,
+            data={"numero_guia": numero_guia, "estado": datos.estado},
+        )
+
+    # CA1 y CA4: Identificar el pedido asociado a la guía; si no existe, rechazar (404) y registrar
+    envio = envio_repository.obtener_envio_por_guia(numero_guia)
+    if envio is None:
+        motivo = f"No existe ningún envío registrado con el número de guía '{numero_guia}'."
+        envio_repository.registrar_actualizacion_envio_rechazada(
+            {
+                "numero_guia": numero_guia,
+                "estado_recibido": estado_norm,
+                "fecha_hora": fecha_hora_iso,
+                "motivo": motivo,
+                "registrado_en": registrado_en,
+            }
+        )
+        raise ReglaNegocioError(
+            message=motivo,
+            status_code=404,
+            data=["numero_guia"],
+        )
+
+    id_orden = envio["id_orden"]
+
+    # CA3: Si el nuevo estado es 'despachado' o 'entregado', actualizar la orden vía HU-011
+    resultado_orden = None
+    orden_actualizada = False
+    if estado_norm in MAPEO_ESTADO_ENVIO_A_EVENTO_ORDEN:
+        evento_orden = MAPEO_ESTADO_ENVIO_A_EVENTO_ORDEN[estado_norm]
+        resultado_orden = actualizar_estado_orden(
+            id_orden,
+            ActualizarEstadoOrdenRequest(origen="Logística", evento=evento_orden),
+        )
+        orden_actualizada = True
+
+    # CA2: Guardar el estado del envío con fecha y hora
+    envio["estado_envio"] = estado_norm
+    envio["fecha_hora_estado"] = fecha_hora_iso
+    envio["actualizado_en"] = registrado_en
+    historial = envio.setdefault("historial_estados", [])
+    historial.append({"estado": estado_norm, "fecha_hora": fecha_hora_iso})
+    envio_repository.guardar_envio(envio)
+
+    return {
+        "id_orden": id_orden,
+        "numero_guia": numero_guia,
+        "estado_envio": envio["estado_envio"],
+        "fecha_hora": fecha_hora_iso,
+        "orden_actualizada": orden_actualizada,
+        "estado_orden": (
+            resultado_orden["orden"]["estado"]
+            if resultado_orden
+            else orden_repository.obtener_orden(id_orden)["estado"]
+        ),
+        "envio": envio,
+    }
