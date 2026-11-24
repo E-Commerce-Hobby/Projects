@@ -11,6 +11,7 @@ from app.api.disponibilidad_router import router as disponibilidad_router
 from app.api.enrollment import router as enrollment_router
 from app.api.event import router as event_router
 from app.api.reminder import router as reminder_router
+from app.api.shipping import router as shipping_router
 from app.api.inventory import router as inventory_router
 from app.api.pos import router as pos_router
 from app.api.product_router import router as product_router
@@ -70,6 +71,7 @@ app.include_router(cliente_router)                           # HU-007
 app.include_router(auth_router)                              # HU-008 / HU-029 / HU-030
 app.include_router(carrito_router)                           # HU-009
 app.include_router(orden_router)                             # HU-010
+app.include_router(shipping_router)                          # HU-019
 app.include_router(envio_router)                             # HU-020
 
 app.include_router(event_router)                             # HU-017
