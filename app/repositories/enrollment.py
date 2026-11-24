@@ -47,5 +47,12 @@ class EnrollmentRepository:
         self._enrollments_db.clear()
         self._id_counter = 1
 
+    def get_confirmed_by_event_id(self, event_id: int) -> List[Dict]:
+        return [
+            enrollment
+            for enrollment in self._enrollments_db
+            if enrollment["event_id"] == event_id and enrollment["status"] == "confirmada"
+        ]
+
 
 enrollment_repository = EnrollmentRepository()
