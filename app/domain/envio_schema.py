@@ -1,6 +1,8 @@
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
-
+from datetime import datetime
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
 
 class ConfirmarUbicacionRequest(BaseModel):
     """Entrada opcional para FUN-7.1.4 (CA2): confirmar la ubicación sugerida o una elegible."""
@@ -54,3 +56,29 @@ class GenerarGuiaRequest(BaseModel):
         description="Dirección y ciudad de destino del pedido.",
         examples=["Calle 45 # 28-15, Bucaramanga, Santander"],
     )
+
+class ActualizarEstadoEnvioRequest(BaseModel):
+    """Entrada para FUN-7.1.3 (actualización de estado enviada por la transportadora)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    numero_guia: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="Número de guía asignado por la transportadora.",
+        examples=["SRV-1234567890"],
+    )
+    estado: str = Field(
+        ...,
+        min_length=1,
+        max_length=40,
+        description="Estado reportado por la transportadora ('despachado', 'en tránsito', 'entregado').",
+        examples=["despachado"],
+    )
+    fecha_hora: datetime = Field(
+        ...,
+        description="Fecha y hora del evento reportado en formato ISO 8601.",
+        examples=["2026-11-24T00:15:00+00:00"],
+    )
+    

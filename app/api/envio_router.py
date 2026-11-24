@@ -1,6 +1,12 @@
 from fastapi import APIRouter, status
-from app.domain.envio_schema import ConfirmarUbicacionRequest, GenerarGuiaRequest
+from app.domain.envio_schema import (
+    ActualizarEstadoEnvioRequest,
+    ConfirmarUbicacionRequest,
+    GenerarGuiaRequest,
+)
+from app.repositories import envio_repository
 from app.services.envio_service import (
+    actualizar_estado_envio,
     confirmar_ubicacion_despacho,
     consultar_envio,
     generar_guia_envio,
@@ -160,6 +166,83 @@ def crear_guia_envio(id_orden: str, datos: GenerarGuiaRequest):
         "success": True,
         "message": "Guía de envío generada y registrada exitosamente.",
         "data": envio,
+    }
+
+
+@router.patch(
+    "/estado",
+    status_code=status.HTTP_200_OK,
+    summary="Actualizar estado del envío desde la transportadora (HU-021: FUN-7.1.3)",
+    description=(
+        "Identifica el pedido asociado al número de guía, actualiza el estado del envío "
+        "('despachado', 'en tránsito', 'entregado') con fecha y hora, y sincroniza el estado "
+        "de la orden vía HU-011 cuando corresponde ('despachado' o 'entregado')."
+    ),
+    responses={
+        200: {
+            "description": "Estado del envío actualizado exitosamente",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "message": "Estado del envío actualizado exitosamente.",
+                        "data": {
+                            "id_orden": "ORD-A1B2C3D4",
+                            "numero_guia": "SRV-1234567890",
+                            "estado_envio": "despachado",
+                            "fecha_hora": "2026-11-24T00:15:00+00:00",
+                            "orden_actualizada": True,
+                            "estado_orden": "enviada",
+                        },
+                    }
+                }
+            },
+        },
+        400: {
+            "description": "Estado de envío no permitido (rechazo registrado)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "message": "Estado de envío no permitido: 'perdido'. Valores válidos: despachado, en tránsito, entregado.",
+                        "data": {"numero_guia": "SRV-1234567890", "estado": "perdido"},
+                    }
+                }
+            },
+        },
+        404: {
+            "description": "Número de guía inexistente (rechazo registrado)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "message": "No existe ningún envío registrado con el número de guía 'SRV-NOEXISTE'.",
+                        "data": ["numero_guia"],
+                    }
+                }
+            },
+        },
+    },
+)
+def procesar_actualizacion_envio(datos: ActualizarEstadoEnvioRequest):
+    resultado = actualizar_estado_envio(datos)
+    return {
+        "success": True,
+        "message": "Estado del envío actualizado exitosamente.",
+        "data": resultado,
+    }
+
+
+@router.get(
+    "/actualizaciones-rechazadas",
+    status_code=status.HTTP_200_OK,
+    summary="Consultar actualizaciones de envío rechazadas (HU-021: CA4)",
+)
+def obtener_actualizaciones_rechazadas(numero_guia: str | None = None):
+    return {
+        "success": True,
+        "message": "Actualizaciones de envío rechazadas consultadas exitosamente.",
+        "data": envio_repository.listar_actualizaciones_envio_rechazadas(numero_guia),
     }
 
 
