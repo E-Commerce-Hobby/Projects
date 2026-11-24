@@ -8,7 +8,13 @@ from app.core.invoice_provider_gateway import (
     InvoiceProviderUnavailableError,
     invoice_provider_gateway,
 )
-from app.domain.invoice import InvoiceGenerateRequest, InvoiceResponseData
+from app.domain.invoice import (
+    InvoiceGenerateRequest, 
+    InvoiceResponseData, 
+    FiscalInfoResponseData, 
+    FiscalInfoUpdateRequest,
+    OrderFiscalQueryResponseData,
+)    
 from app.repositories.invoice import InvoiceRepository
 
 
@@ -317,4 +323,82 @@ class InvoiceService:
         return (
             InvoiceResponseData(**updated),
             "Factura corregida y reenviada, pero fue nuevamente rechazada por el proveedor."
+        )
+
+    # Dentro de la clase InvoiceService para HU-035:
+    def register_fiscal_info(
+        self,
+        invoice_id: int,
+        payload: FiscalInfoUpdateRequest
+    ) -> FiscalInfoResponseData:
+        """
+        FUN-5.2.3: Registra identificador fiscal y estado de validación ('aceptada' o 'rechazada').
+        """
+        # CA2: Validar campos explícitamente sin alterar nada si son inválidos (HTTP 400)
+        invalid_fields = []
+        clean_identifier = (payload.fiscal_identifier or "").strip()
+        if not clean_identifier:
+            invalid_fields.append("fiscal_identifier")
+        if payload.validation_status not in {"aceptada", "rechazada"}:
+            invalid_fields.append("validation_status")
+
+        if invalid_fields:
+            raise ReglaNegocioError(
+                f"Campos inválidos: {', '.join(invalid_fields)}.",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        # CA3: Verificar que la factura exista (HTTP 404)
+        invoice = self.repository.get_invoice_by_id(invoice_id)
+        if not invoice:
+            raise ReglaNegocioError(
+                f"La factura con ID {invoice_id} no existe.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        # CA1: Guardar identificador y estado asociados a la factura
+        now = datetime.now(timezone.utc)
+        updated = self.repository.update_invoice(
+            invoice_id=invoice_id,
+            updates={
+                "fiscal_identifier": clean_identifier,
+                "status": payload.validation_status,
+                "updated_at": now,
+            }
+        )
+
+        return FiscalInfoResponseData(
+            invoice_id=updated["invoice_id"],
+            sale_id=updated["sale_id"],
+            fiscal_identifier=updated["fiscal_identifier"],
+            status=updated["status"],
+            updated_at=now,
+        )
+
+    def get_invoice_by_order(self, order_id: int) -> OrderFiscalQueryResponseData:
+        """
+        FUN-5.2.5: Consulta ID de factura, identificador fiscal y estado actual por ID de orden.
+        """
+        # CA6: Verificar existencia de la orden (HTTP 404)
+        order = self.repository.get_order_by_id(order_id)
+        if not order:
+            raise ReglaNegocioError(
+                "La orden no existe",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        # CA5: Verificar si la orden tiene una factura asociada (HTTP 404)
+        invoice = self.repository.get_invoice_by_sale_id(order_id)
+        if not invoice:
+            raise ReglaNegocioError(
+                "La orden no tiene factura asociada",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        # CA4: Retornar ID de factura, identificador fiscal y estado actual
+        return OrderFiscalQueryResponseData(
+            order_id=order_id,
+            invoice_id=invoice["invoice_id"],
+            fiscal_identifier=invoice.get("fiscal_identifier"),
+            status=invoice["status"],
         )

@@ -57,5 +57,12 @@ class InvoiceRepository:
         self._invoices_db.clear()
         self._invoice_id_counter = 1
 
+    # En InvoiceRepository (app/repositories/invoice.py) para HU-035
+    def register_order(self, order_id: int, status: str = "confirmada", origin: str = "PAGOS") -> dict:
+        return self.register_sale(sale_id=order_id, status=status, origin=origin)
+
+    def get_order_by_id(self, order_id: int) -> Optional[dict]:
+        return self.get_sale_by_id(sale_id=order_id)
+
 
 invoice_repository = InvoiceRepository()

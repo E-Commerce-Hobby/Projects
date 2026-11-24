@@ -95,3 +95,56 @@ class InvoiceStandardResponse(BaseModel):
         max_length=200,
         description="Mensaje descriptivo en español de máximo 200 caracteres"
     )
+
+# Agregar en app/domain/invoice.py para HU-035
+
+class FiscalInfoUpdateRequest(BaseModel):
+    fiscal_identifier: str = Field(
+        ...,
+        description="Identificador fiscal emitido por el proveedor autorizado (ej. CUFE, no vacío)",
+        examples=["CUFE-9f8e7d6c5b4a3210fedcba9876543210"]
+    )
+    validation_status: Literal["aceptada", "rechazada"] = Field(
+        ...,
+        description="Estado de validación fiscal ('aceptada' o 'rechazada')",
+        examples=["aceptada"]
+    )
+
+    @field_validator("fiscal_identifier")
+    @classmethod
+    def validate_fiscal_identifier_not_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("El campo 'fiscal_identifier' no puede estar vacío.")
+        return cleaned
+
+
+class FiscalInfoResponseData(BaseModel):
+    invoice_id: int = Field(..., description="ID de la factura", examples=[1])
+    sale_id: int = Field(..., description="ID de la venta / orden asociada", examples=[501])
+    fiscal_identifier: str = Field(..., description="Identificador fiscal guardado", examples=["CUFE-123456"])
+    status: Literal["generado", "aceptada", "rechazada", "requiere revisión manual"] = Field(
+        ...,
+        description="Estado actual de validación de la factura",
+        examples=["aceptada"]
+    )
+    updated_at: datetime = Field(..., description="Fecha y hora del registro fiscal")
+
+
+class OrderFiscalQueryResponseData(BaseModel):
+    order_id: int = Field(..., description="ID de la orden / venta consultada", examples=[501])
+    invoice_id: int = Field(..., description="ID de la factura asociada", examples=[1])
+    fiscal_identifier: Optional[str] = Field(None, description="Identificador fiscal de la factura", examples=["CUFE-123456"])
+    status: str = Field(..., description="Estado actual de la factura", examples=["aceptada"])
+
+
+class FiscalInfoStandardResponse(BaseModel):
+    success: bool
+    data: Optional[FiscalInfoResponseData] = None
+    message: str = Field(..., max_length=200)
+
+
+class OrderFiscalQueryStandardResponse(BaseModel):
+    success: bool
+    data: Optional[OrderFiscalQueryResponseData] = None
+    message: str = Field(..., max_length=200)
