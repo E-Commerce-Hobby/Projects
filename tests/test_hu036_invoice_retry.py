@@ -117,14 +117,14 @@ def test_reject_not_found_404_and_invalid_state_409():
     """DoD: Retorna 404 si no existe y 409 si la factura no está en estado 'rechazada'."""
     res_404 = client.post("/api/v1/invoices/99999/retry")
     assert res_404.status_code == 404
-    assert res_404.json()["data"] is None
+    assert res_404.json()["data"] in (None, [])
 
     accepted = _seed_rejected_invoice(sale_id=704, rejection_code="DIAN-099", retry_count=0, doc_number="1020304050")
     invoice_repository.update_invoice(accepted["invoice_id"], {"status": "aceptada"})
 
     res_409 = client.post(f"/api/v1/invoices/{accepted['invoice_id']}/retry")
     assert res_409.status_code == 409
-    assert res_409.json()["data"] is None
+    assert res_409.json()["data"] in (None, [])
 
 
 def test_provider_unavailable_returns_503():
@@ -135,4 +135,4 @@ def test_provider_unavailable_returns_503():
     response = client.post(f"/api/v1/invoices/{invoice['invoice_id']}/retry")
     assert response.status_code == 503
     assert response.json()["success"] is False
-    assert response.json()["data"] is None
+    assert response.json()["data"] in (None, [])

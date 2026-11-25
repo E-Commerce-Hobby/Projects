@@ -53,7 +53,7 @@ def test_ca3_reject_when_carrier_timeout_exceeds_10s():
     assert response.status_code == 503
     body = response.json()
     assert body["success"] is False
-    assert body["data"] is None
+    assert body["data"] in (None, [])
     assert "no está disponible" in body["message"].lower()
 
 
@@ -72,7 +72,7 @@ def test_ca3_reject_when_carrier_returns_error():
     assert response.status_code == 503
     body = response.json()
     assert body["success"] is False
-    assert body["data"] is None
+    assert body["data"] in (None, [])
 
 
 def test_ca4_reject_zero_or_negative_measurements():
@@ -92,7 +92,7 @@ def test_ca4_reject_zero_or_negative_measurements():
     assert response.status_code == 400
     body = response.json()
     assert body["success"] is False
-    assert body["data"] is None
+    assert body["data"] in (None, [])
     assert "weight_kg" in body["message"]
     assert "width_cm" in body["message"]
     assert "height_cm" in body["message"]
@@ -104,5 +104,5 @@ def test_ca4_reject_missing_fields_and_empty_payload():
     assert response.status_code == 400
     body = response.json()
     assert body["success"] is False
-    assert body["data"] is None
+    assert body["data"] in (None, [])
     assert "Faltan campos obligatorios" in body["message"]

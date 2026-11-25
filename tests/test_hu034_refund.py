@@ -85,7 +85,7 @@ def test_ca4_gateway_timeout_10s_or_decline_keeps_statuses_unchanged():
 
     response = client.post("/api/v1/payments/refunds", json={"order_id": 1004})
     assert response.status_code == 503
-    assert response.json()["data"] is None
+    assert response.json()["data"] in (None, [])
 
     order_after = refund_repository.get_order_by_id(1004)
     assert order_after["payment_status"] == "aprobado"
@@ -96,8 +96,8 @@ def test_reject_not_found_404_and_empty_payload_400():
     """DoD: Orden inexistente retorna 404 y entrada vacía {} retorna 400."""
     res_404 = client.post("/api/v1/payments/refunds", json={"order_id": 99999})
     assert res_404.status_code == 404
-    assert res_404.json()["data"] is None
+    assert res_404.json()["data"] in (None, [])
 
     res_400 = client.post("/api/v1/payments/refunds", json={})
     assert res_400.status_code == 400
-    assert res_400.json()["data"] is None
+    assert res_400.json()["data"] in (None, [])

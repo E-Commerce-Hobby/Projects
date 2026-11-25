@@ -35,15 +35,15 @@ class RefundService:
             )
 
         # CA2: Verificar las 3 condiciones de elegibilidad e indicar cuál no se cumple
-        if order.get("payment_status") != "aprobado":
-            raise ReglaNegocioError(
-                "Reembolso rechazado: el pago de la orden no está en estado 'aprobado'.",
-                status_code=status.HTTP_409_CONFLICT
-            )
-
         if order.get("order_status") == "reembolsada" or order.get("payment_status") == "reembolsado":
             raise ReglaNegocioError(
                 "Reembolso rechazado: la orden ya ha sido reembolsada previamente.",
+                status_code=status.HTTP_409_CONFLICT
+            )
+
+        if order.get("payment_status") != "aprobado":
+            raise ReglaNegocioError(
+                "Reembolso rechazado: el pago de la orden no está en estado 'aprobado'.",
                 status_code=status.HTTP_409_CONFLICT
             )
 
