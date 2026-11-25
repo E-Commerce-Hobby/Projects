@@ -49,7 +49,6 @@ class ProductoRespuesta(BaseModel):
 
 class ErrorRespuesta(BaseModel):
     """Formato provisional de error (pendiente de definición en el tercer corte)."""
-
     mensaje: str = Field(..., max_length=200)
     campos_faltantes: list[str] | None = None
     campos_invalidos: list[str] | None = None
@@ -57,6 +56,9 @@ class ErrorRespuesta(BaseModel):
 class RespuestaEstandar(BaseModel, Generic[T]):
     """Formato estándar de respuesta del proyecto."""
 
+
+class RespuestaEstandar(BaseModel, Generic[T]):
+    """Formato estándar de respuesta del proyecto."""
     success: bool
     message: str
     data: T | None = None

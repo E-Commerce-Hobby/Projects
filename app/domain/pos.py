@@ -1,6 +1,7 @@
 """Pydantic schemas for the POS module (barcode search and counter sales)."""
 import re
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -168,3 +169,81 @@ class SaleRecord(BaseModel):
     lines: list[SaleLineRecord]
     total: float
     created_at: datetime
+    applied_discount_ids: list[str] = Field(default_factory=list)
+
+# ---------------------------------------------------------------------------
+# HU-031 (FUN-4.2.3): Aplicación de descuentos en venta POS
+# ---------------------------------------------------------------------------
+class ApplyDiscountRequest(BaseModel):
+    """Body para FUN-4.2.3: aplicar un descuento vigente a una venta POS."""
+
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={"example": {"discount_id": "DESC10"}},
+    )
+
+    discount_id: str = Field(
+        ...,
+        min_length=1,
+        max_length=50,
+        description="ID del descuento a aplicar a la venta de mostrador.",
+        examples=["DESC10"],
+    )
+
+    @field_validator("discount_id")
+    @classmethod
+    def validate_discount_id(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("El ID de descuento no puede estar vacío.")
+        return value.strip().upper()
+
+
+class AppliedDiscountInfo(BaseModel):
+    id: str
+    discount_type: Literal["percentage", "fixed"]
+    value: float
+    amount_discounted: float
+
+
+class SaleDiscountResponse(BaseModel):
+    id: int
+    products: list[SaleItemResponse]
+    applied_discount: AppliedDiscountInfo
+    applied_discount_ids: list[str]
+    previous_total: float
+    total: float
+    mensaje: str
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": 1,
+                "products": [
+                    {
+                        "product_code": "7701234567890",
+                        "quantity": 2,
+                        "unit_price": 2500.0,
+                        "subtotal": 5000.0,
+                    }
+                ],
+                "applied_discount": {
+                    "id": "DESC10",
+                    "discount_type": "percentage",
+                    "value": 10.0,
+                    "amount_discounted": 500.0,
+                },
+                "applied_discount_ids": ["DESC10"],
+                "previous_total": 5000.0,
+                "total": 4500.0,
+                "mensaje": "Descuento aplicado correctamente a la venta.",
+            }
+        }
+    )
+
+
+class DiscountRecord(BaseModel):
+    id: str
+    discount_type: Literal["percentage", "fixed"]
+    value: float
+    valid_from: datetime
+    valid_until: datetime
