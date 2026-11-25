@@ -17,18 +17,18 @@ class InventoryService:
         location_exists = self._repository.get_location_by_id(data.location_id) is not None
 
         if not product_exists and not location_exists:
-            raise ReglaNegocioError("El producto y la ubicación no existen", 404)
+            raise ReglaNegocioError("El producto y la ubicación no existen", status_code=404)
         if not product_exists:
-            raise ReglaNegocioError("El producto no existe", 404)
+            raise ReglaNegocioError("El producto no existe", status_code=404)
         if not location_exists:
-            raise ReglaNegocioError("La ubicación no existe", 404)
+            raise ReglaNegocioError("La ubicación no existe", status_code=404)
 
         # CA4: inventory already registered for this pair -> 409
         if self._repository.get_inventory(data.product_id, data.location_id) is not None:
             raise ReglaNegocioError(
                 "Ya existe inventario para este producto en la ubicación; "
                 "use el ajuste de inventario (HU-025)",
-                409,
+                status_code=409,
             )
 
         # CA1: persist and confirm
