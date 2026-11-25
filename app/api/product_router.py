@@ -1,7 +1,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import ValidationError
 
+from app.core.errors import ReglaNegocioError
 from app.domain.product import ProductFilterParams, ProductResponse
 from app.repositories.product_repository import InMemoryProductRepository
 from app.services.product_service import ProductService
@@ -23,12 +25,17 @@ def get_product_filters(
         list[str] | None, Query(description="Características (repetible)")
     ] = None,
 ) -> ProductFilterParams:
-    return ProductFilterParams(
-        category=category,
-        min_price=min_price,
-        max_price=max_price,
-        features=features,
-    )
+    try:
+        return ProductFilterParams(
+            category=category,
+            min_price=min_price,
+            max_price=max_price,
+            features=features,
+        )
+    except ValidationError as exc:
+        primer_error = exc.errors()[0].get("msg", "Filtros de búsqueda inválidos.")
+        mensaje = primer_error.replace("Value error, ", "")
+        raise ReglaNegocioError(message=mensaje, status_code=400)
 
 
 @router.get(

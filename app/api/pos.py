@@ -69,7 +69,6 @@ def search_product_by_barcode(
 
 @router.post(
     "/sales",
-    response_model=SaleResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Registrar venta de mostrador",
     description=(
@@ -99,8 +98,13 @@ def search_product_by_barcode(
 def register_sale(
     payload: SaleCreateRequest,
     service: Annotated[PosService, Depends(get_pos_service)],
-) -> SaleResponse:
-    return service.register_sale(payload)
+):
+    venta = service.register_sale(payload)
+    return {
+        "success": True,
+        "message": venta.mensaje,
+        "data": venta.model_dump(),
+    }
 
 
 @router.post(
