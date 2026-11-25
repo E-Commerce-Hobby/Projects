@@ -54,7 +54,7 @@ class ErrorRespuesta(BaseModel):
     campos_faltantes: list[str] | None = None
     campos_invalidos: list[str] | None = None
     
-    class RespuestaEstandar(BaseModel, Generic[T]):
+class RespuestaEstandar(BaseModel, Generic[T]):
     """Formato estándar de respuesta del proyecto."""
 
     success: bool
