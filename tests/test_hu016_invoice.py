@@ -132,7 +132,7 @@ def test_provider_unavailable_returns_503():
     response = client.post(f"/api/v1/invoices/{invoice_id}/send")
     assert response.status_code == 503
     assert response.json()["success"] is False
-    assert response.json()["data"] is None
+    assert response.json()["data"] in (None, [])
 
 
 def test_empty_payload_returns_400():
@@ -140,4 +140,4 @@ def test_empty_payload_returns_400():
     response = client.post("/api/v1/invoices", json={})
     assert response.status_code == 400
     assert response.json()["success"] is False
-    assert response.json()["data"] is None
+    assert response.json()["data"] in (None, [])

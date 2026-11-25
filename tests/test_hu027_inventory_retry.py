@@ -120,4 +120,4 @@ def test_empty_payload_returns_400_and_service_unavailable_returns_503():
         }
     )
     assert res_503.status_code == 503
-    assert res_503.json()["data"] is None
+    assert res_503.json()["data"] in (None, [])

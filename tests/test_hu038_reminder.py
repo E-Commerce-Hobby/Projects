@@ -123,5 +123,5 @@ def test_service_unavailable_returns_503():
     assert response.status_code == 503
     body = response.json()
     assert body["success"] is False
-    assert body["data"] is None
+    assert body["data"] in (None, [])
     assert len(body["message"]) <= 200

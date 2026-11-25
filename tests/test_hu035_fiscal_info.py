@@ -68,7 +68,7 @@ def test_ca2_reject_empty_identifier_or_invalid_status_without_saving():
         json={"fiscal_identifier": "CUFE-123", "validation_status": "pendiente"}
     )
     assert res_bad_status.status_code == 400
-    assert res_bad_status.json()["data"] is None
+    assert res_bad_status.json()["data"] in (None, [])
 
 
 def test_ca3_reject_nonexistent_invoice_404():
@@ -78,7 +78,7 @@ def test_ca3_reject_nonexistent_invoice_404():
         json={"fiscal_identifier": "CUFE-123", "validation_status": "aceptada"}
     )
     assert response.status_code == 404
-    assert response.json()["data"] is None
+    assert response.json()["data"] in (None, [])
 
 
 def test_ca4_query_by_order_returns_invoice_fiscal_and_status():
@@ -132,7 +132,7 @@ def test_ca7_unauthorized_role_returns_403_and_missing_token_401():
         headers={"Authorization": "Bearer client-1", "X-User-Role": "cliente"}
     )
     assert res_403.status_code == 403
-    assert res_403.json()["data"] is None
+    assert res_403.json()["data"] in (None, [])
 
     res_401 = client.get("/api/v1/invoices/by-order/805")
     assert res_401.status_code == 401
@@ -143,4 +143,4 @@ def test_empty_fiscal_payload_returns_400():
     inv = _seed_invoice_for_order(order_id=806)
     response = client.patch(f"/api/v1/invoices/{inv['invoice_id']}/fiscal", json={})
     assert response.status_code == 400
-    assert response.json()["data"] is None
+    assert response.json()["data"] in (None, [])

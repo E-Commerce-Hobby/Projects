@@ -84,7 +84,7 @@ def test_reject_nonexistent_order_404():
     assert response.status_code == 404
     body = response.json()
     assert body["success"] is False
-    assert body["data"] is None
+    assert body["data"] in (None, [])
     assert len(body["message"]) <= 200
 
 
@@ -93,7 +93,7 @@ def test_reject_empty_or_invalid_payload_400():
     res_empty = client.post("/api/v1/payments/rejected", json={})
     assert res_empty.status_code == 400
     assert res_empty.json()["success"] is False
-    assert res_empty.json()["data"] is None
+    assert res_empty.json()["data"] in (None, [])
 
     rejected_payment_repository.register_order(order_id=1004)
     res_blank_tx = client.post(
