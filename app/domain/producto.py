@@ -52,6 +52,9 @@ class ErrorRespuesta(BaseModel):
     mensaje: str = Field(..., max_length=200)
     campos_faltantes: list[str] | None = None
     campos_invalidos: list[str] | None = None
+    
+class RespuestaEstandar(BaseModel, Generic[T]):
+    """Formato estándar de respuesta del proyecto."""
 
 
 class RespuestaEstandar(BaseModel, Generic[T]):
