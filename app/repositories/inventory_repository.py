@@ -41,6 +41,14 @@ class InventoryRepository:
                 "quantity": quantity,
             }
 
+    def get_total_quantity_by_product(self, product_id: int) -> int:
+        with self._lock:
+            return sum(
+                qty
+                for (prod_id, _), qty in self._inventory.items()
+                if prod_id == product_id
+            )
+
     def create_inventory(self, product_id: int, location_id: int, quantity: int) -> dict:
         with self._lock:
             self._inventory[(product_id, location_id)] = quantity
