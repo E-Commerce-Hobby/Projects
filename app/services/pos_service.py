@@ -1,5 +1,4 @@
-"""Business logic for the POS module."""
-"""Business logic for the POS module."""
+﻿"""Business logic for the POS module."""
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -7,6 +6,8 @@ from app.core.errors import RecursoNoEncontradoError, ReglaNegocioError
 from app.domain.pos import (
     AppliedDiscountInfo,
     ApplyDiscountRequest,
+    CashRegisterClosingRecord,
+    CashRegisterClosingResponse,
     ProductInfo,
     ProductSearchResponse,
     SaleCreateRequest,
@@ -76,6 +77,7 @@ class PosService:
                 lines=lines,
                 total=round(sum(line.subtotal for line in lines), 2),
                 created_at=datetime.now(timezone.utc),
+                payment_method=payload.payment_method,
             )
         )
 
@@ -141,6 +143,65 @@ class PosService:
             previous_total=previous_total,
             total=updated_sale.total,
             mensaje="Descuento aplicado correctamente a la venta.",
+        )
+
+    # FUN-4.2.4 (HU-032) ----------------------------------------------------
+    def close_cash_register(self, cash_register_id: int) -> CashRegisterClosingResponse:
+        register = self._repository.get_cash_register(cash_register_id)
+        if register is None:
+            raise RecursoNoEncontradoError(f"La caja {cash_register_id} no existe.")
+
+        # CA4: rechazar si no hay caja abierta
+        if not register.is_open:
+            raise ReglaNegocioError(
+                "No hay una caja abierta para realizar el cierre.",
+                status_code=409,
+            )
+
+        closed_at = datetime.now(timezone.utc)
+
+        # CA1: consultar todas las ventas desde la apertura hasta el cierre
+        turn_sales = self._repository.list_sales_by_register(
+            cash_register_id=register.id,
+            since=register.opened_at,
+            until=closed_at,
+        )
+
+        # CA2: calcular totales por medio de pago y total general
+        totals: dict[str, float] = defaultdict(float)
+        for sale in turn_sales:
+            totals[sale.payment_method] = round(
+                totals[sale.payment_method] + sale.total, 2
+            )
+
+        totals_by_payment_method = dict(totals)
+        general_total = round(sum(totals_by_payment_method.values()), 2)
+
+        # CA3: registrar el cierre y marcar la caja como cerrada
+        saved_closing = self._repository.create_closing(
+            CashRegisterClosingRecord(
+                cash_register_id=register.id,
+                cashier_id=register.cashier_id,
+                opened_at=register.opened_at,
+                closed_at=closed_at,
+                totals_by_payment_method=totals_by_payment_method,
+                general_total=general_total,
+                sales_count=len(turn_sales),
+            )
+        )
+        self._repository.close_cash_register(register.id)
+
+        return CashRegisterClosingResponse(
+            id=saved_closing.id,
+            cash_register_id=saved_closing.cash_register_id,
+            cashier_id=saved_closing.cashier_id,
+            opened_at=saved_closing.opened_at,
+            closed_at=saved_closing.closed_at,
+            totals_by_payment_method=saved_closing.totals_by_payment_method,
+            general_total=saved_closing.general_total,
+            sales_count=saved_closing.sales_count,
+            status="cerrada",
+            mensaje="Cierre de caja registrado correctamente.",
         )
 
     @staticmethod

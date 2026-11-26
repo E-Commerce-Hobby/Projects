@@ -1,6 +1,6 @@
-"""Pydantic schemas for the POS module (barcode search and counter sales)."""
+﻿"""Pydantic schemas for the POS module (barcode search, counter sales, discounts and cash closing)."""
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -54,6 +54,13 @@ class SaleCreateRequest(BaseModel):
 
     cash_register_id: int = Field(description="ID de la caja donde se registra la venta.", examples=[1])
     products: list[SaleItemRequest] = Field(description="Productos vendidos en el mostrador.")
+    payment_method: str = Field(
+        default="efectivo",
+        min_length=1,
+        max_length=50,
+        description="Medio de pago utilizado en la venta (ej. efectivo, tarjeta, transferencia).",
+        examples=["efectivo"],
+    )
 
     @field_validator("cash_register_id")
     @classmethod
@@ -69,11 +76,20 @@ class SaleCreateRequest(BaseModel):
             raise ValueError("La venta no tiene productos.")
         return value
 
+    @field_validator("payment_method")
+    @classmethod
+    def validate_payment_method(cls, value: str) -> str:
+        limpio = (value or "").strip().lower()
+        if not limpio:
+            raise ValueError("El medio de pago no puede estar vacío.")
+        return limpio
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
                 "cash_register_id": 1,
                 "products": [{"product_code": "7701234567890", "quantity": 2}],
+                "payment_method": "efectivo",
             }
         }
     )
@@ -153,6 +169,7 @@ class CashRegisterRecord(BaseModel):
     id: int
     cashier_id: int
     is_open: bool
+    opened_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SaleLineRecord(BaseModel):
@@ -169,7 +186,9 @@ class SaleRecord(BaseModel):
     lines: list[SaleLineRecord]
     total: float
     created_at: datetime
+    payment_method: str = Field(default="efectivo")
     applied_discount_ids: list[str] = Field(default_factory=list)
+
 
 # ---------------------------------------------------------------------------
 # HU-031 (FUN-4.2.3): Aplicación de descuentos en venta POS
@@ -247,3 +266,54 @@ class DiscountRecord(BaseModel):
     value: float
     valid_from: datetime
     valid_until: datetime
+
+
+# ---------------------------------------------------------------------------
+# HU-032 (FUN-4.2.4): Cierre de caja
+# ---------------------------------------------------------------------------
+class CashRegisterClosingRecord(BaseModel):
+    id: int | None = None
+    cash_register_id: int
+    cashier_id: int
+    opened_at: datetime
+    closed_at: datetime
+    totals_by_payment_method: dict[str, float]
+    general_total: float
+    sales_count: int
+
+
+class CashRegisterClosingResponse(BaseModel):
+    id: int = Field(description="Identificador del cierre de caja registrado.")
+    cash_register_id: int = Field(description="ID de la caja cerrada.")
+    cashier_id: int = Field(description="ID del cajero responsable del turno.")
+    opened_at: datetime = Field(description="Fecha y hora UTC de apertura de la caja.")
+    closed_at: datetime = Field(description="Fecha y hora UTC del cierre de la caja.")
+    totals_by_payment_method: dict[str, float] = Field(
+        description="Total recaudado por cada medio de pago durante el turno."
+    )
+    general_total: float = Field(
+        description="Total general del turno (suma de los totales por medio de pago)."
+    )
+    sales_count: int = Field(description="Cantidad de ventas consolidadas en el turno.")
+    status: str = Field(default="cerrada", description="Estado final de la caja.")
+    mensaje: str = Field(description="Confirmación del cierre de caja.")
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": 1,
+                "cash_register_id": 1,
+                "cashier_id": 10,
+                "opened_at": "2026-11-25T14:00:00Z",
+                "closed_at": "2026-11-25T22:00:00Z",
+                "totals_by_payment_method": {
+                    "efectivo": 5000.0,
+                    "tarjeta": 8400.0,
+                },
+                "general_total": 13400.0,
+                "sales_count": 2,
+                "status": "cerrada",
+                "mensaje": "Cierre de caja registrado correctamente.",
+            }
+        }
+    )
