@@ -4,6 +4,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 
+from app.domain.caracteristica_categoria import (
+    AsociacionCaracteristicasData,
+    AsociarCaracteristicasRequest,
+    CaracteristicasCategoriaData,
+)
 from app.domain.producto import (
     ProductoActualizacion,
     ProductoRegistro,
@@ -14,26 +19,15 @@ from app.repositories.producto_repository import ProductoRepository
 from app.services.producto_service import ProductoService
 
 try:
-    from app.domain.caracteristica_categoria import (  # type: ignore
-        CaracteristicasCategoriaRespuesta,
-        CaracteristicasProductoEntrada,
-        CaracteristicasProductoRespuesta,
-    )
     from app.repositories.caracteristica_categoria_repository import (  # type: ignore
         CaracteristicaCategoriaRepository,
     )
     from app.services.caracteristica_categoria_service import (  # type: ignore
         CaracteristicaCategoriaService,
     )
-
-    _HU022_DISPONIBLE = True
 except (ImportError, ModuleNotFoundError):
-    CaracteristicasCategoriaRespuesta = Any  # type: ignore
-    CaracteristicasProductoEntrada = Any  # type: ignore
-    CaracteristicasProductoRespuesta = Any  # type: ignore
     CaracteristicaCategoriaRepository = None  # type: ignore
     CaracteristicaCategoriaService = None  # type: ignore
-    _HU022_DISPONIBLE = False
 
 router = APIRouter(prefix="/productos", tags=["Productos"])
 
@@ -67,8 +61,8 @@ def get_caracteristica_servicio(
     if CaracteristicaCategoriaService is None or caracteristica_repo is None:
         return None
     return CaracteristicaCategoriaService(
-        producto_repositorio=producto_repo,
-        caracteristica_repositorio=caracteristica_repo,
+        producto_repo=producto_repo,
+        caracteristica_repo=caracteristica_repo,
     )
 
 
@@ -109,39 +103,38 @@ def actualizar_producto(
     )
 
 
-if _HU022_DISPONIBLE:
-
-    @router.get(
-        "/{producto_id}/caracteristicas/categoria",
-        status_code=status.HTTP_200_OK,
-        response_model=RespuestaEstandar[CaracteristicasCategoriaRespuesta],
-        summary="Consultar características de la categoría asociada al producto (HU-022)",
+@router.get(
+    "/{producto_id}/caracteristicas/categoria",
+    status_code=status.HTTP_200_OK,
+    response_model=RespuestaEstandar[CaracteristicasCategoriaData],
+    summary="Consultar características de la categoría asociada al producto (HU-022)",
+)
+def consultar_caracteristicas_categoria(
+    producto_id: UUID,
+    servicio: Any = Depends(get_caracteristica_servicio),
+) -> RespuestaEstandar[CaracteristicasCategoriaData]:
+    resultado = servicio.consultar_caracteristicas_categoria(producto_id)
+    return RespuestaEstandar[CaracteristicasCategoriaData](
+        success=True,
+        message="Características de la categoría consultadas exitosamente.",
+        data=resultado,
     )
-    def consultar_caracteristicas_categoria(
-        producto_id: UUID,
-        servicio: Any = Depends(get_caracteristica_servicio),
-    ) -> RespuestaEstandar[CaracteristicasCategoriaRespuesta]:
-        resultado = servicio.consultar_caracteristicas_categoria(producto_id)
-        return RespuestaEstandar[CaracteristicasCategoriaRespuesta](
-            success=True,
-            message="Características de la categoría consultadas exitosamente.",
-            data=resultado,
-        )
 
-    @router.post(
-        "/{producto_id}/caracteristicas",
-        status_code=status.HTTP_200_OK,
-        response_model=RespuestaEstandar[CaracteristicasProductoRespuesta],
-        summary="Asociar o actualizar características de un producto (HU-022)",
+
+@router.post(
+    "/{producto_id}/caracteristicas",
+    status_code=status.HTTP_200_OK,
+    response_model=RespuestaEstandar[AsociacionCaracteristicasData],
+    summary="Asociar o actualizar características de un producto (HU-022)",
+)
+def asociar_caracteristicas_producto(
+    producto_id: UUID,
+    datos: AsociarCaracteristicasRequest,
+    servicio: Any = Depends(get_caracteristica_servicio),
+) -> RespuestaEstandar[AsociacionCaracteristicasData]:
+    resultado = servicio.asociar_caracteristicas(producto_id, datos)
+    return RespuestaEstandar[AsociacionCaracteristicasData](
+        success=True,
+        message="Características del producto actualizadas exitosamente.",
+        data=resultado,
     )
-    def asociar_caracteristicas_producto(
-        producto_id: UUID,
-        datos: CaracteristicasProductoEntrada,
-        servicio: Any = Depends(get_caracteristica_servicio),
-    ) -> RespuestaEstandar[CaracteristicasProductoRespuesta]:
-        resultado = servicio.asociar_caracteristicas(producto_id, datos)
-        return RespuestaEstandar[CaracteristicasProductoRespuesta](
-            success=True,
-            message="Características del producto actualizadas exitosamente.",
-            data=resultado,
-        )
