@@ -1,0 +1,51 @@
+name: CI - Verificación FastAPI y Pytest
+
+on:
+  push:
+    branches:
+      - development
+      - testing
+      - main
+  pull_request:
+    branches:
+      - development
+      - testing
+      - main
+
+jobs:
+  pruebas:
+    name: Arranque de API y pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verificar arranque de FastAPI y esquema OpenAPI
+        run: |
+          python -c "
+          import main
+          from fastapi.testclient import TestClient
+
+          cliente = TestClient(main.app)
+          assert cliente.get('/').status_code == 200, 'La ruta raíz no respondió 200'
+          assert cliente.get('/openapi.json').status_code == 200, 'OpenAPI/Swagger no respondió 200'
+
+          rutas = [(r.path, tuple(sorted(r.methods))) for r in main.app.routes if hasattr(r, 'methods')]
+          assert len(rutas) == len(set(rutas)), 'Existen rutas duplicadas en main.py'
+          print(f'API OK: {len(rutas)} rutas activas, 0 duplicadas')
+          "
+
+      - name: Ejecutar pruebas unitarias con pytest
+        run: pytest -v
