@@ -1,8 +1,14 @@
-"""In-memory repository for the POS module. CRUD methods only, no business rules."""
+﻿"""In-memory repository for the POS module. CRUD methods only, no business rules."""
 from datetime import datetime, timezone
 from threading import Lock
 
-from app.domain.pos import CashRegisterRecord, DiscountRecord, ProductRecord, SaleRecord
+from app.domain.pos import (
+    CashRegisterClosingRecord,
+    CashRegisterRecord,
+    DiscountRecord,
+    ProductRecord,
+    SaleRecord,
+)
 
 
 class PosRepository:
@@ -33,6 +39,7 @@ class PosRepository:
             2: CashRegisterRecord(id=2, cashier_id=11, is_open=False),
         }
         self._sales: dict[int, SaleRecord] = {}
+        self._closings: dict[int, CashRegisterClosingRecord] = {}
         self._discounts: dict[str, DiscountRecord] = {
             "DESC10": DiscountRecord(
                 id="DESC10",
@@ -64,6 +71,7 @@ class PosRepository:
             ),
         }
         self._next_sale_id = 1
+        self._next_closing_id = 1
         self._lock = Lock()
 
     def get_product_by_barcode(self, barcode: str) -> ProductRecord | None:
@@ -74,7 +82,15 @@ class PosRepository:
         return self._pos_stock.get(product_code, 0)
 
     def get_cash_register(self, cash_register_id: int) -> CashRegisterRecord | None:
-        return self._cash_registers.get(cash_register_id)
+        with self._lock:
+            return self._cash_registers.get(cash_register_id)
+
+    def close_cash_register(self, cash_register_id: int) -> CashRegisterRecord:
+        with self._lock:
+            register = self._cash_registers[cash_register_id]
+            updated = register.model_copy(update={"is_open": False})
+            self._cash_registers[cash_register_id] = updated
+            return updated
 
     def create_sale(self, sale: SaleRecord) -> SaleRecord:
         with self._lock:
@@ -86,6 +102,17 @@ class PosRepository:
     def get_sale(self, sale_id: int) -> SaleRecord | None:
         return self._sales.get(sale_id)
 
+    def list_sales_by_register(
+        self, cash_register_id: int, since: datetime, until: datetime
+    ) -> list[SaleRecord]:
+        with self._lock:
+            return [
+                sale
+                for sale in self._sales.values()
+                if sale.cash_register_id == cash_register_id
+                and since <= sale.created_at <= until
+            ]
+
     def get_discount(self, discount_id: str) -> DiscountRecord | None:
         return self._discounts.get(discount_id)
 
@@ -93,3 +120,24 @@ class PosRepository:
         with self._lock:
             self._sales[sale.id] = sale
         return sale
+
+    def create_closing(
+        self, closing: CashRegisterClosingRecord
+    ) -> CashRegisterClosingRecord:
+        with self._lock:
+            saved = closing.model_copy(update={"id": self._next_closing_id})
+            self._closings[saved.id] = saved
+            self._next_closing_id += 1
+        return saved
+
+    def list_closings(
+        self, cash_register_id: int | None = None
+    ) -> list[CashRegisterClosingRecord]:
+        with self._lock:
+            if cash_register_id is None:
+                return list(self._closings.values())
+            return [
+                closing
+                for closing in self._closings.values()
+                if closing.cash_register_id == cash_register_id
+            ]

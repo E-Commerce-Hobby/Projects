@@ -1,4 +1,4 @@
-"""POS endpoints: barcode search, counter sale registration and discounts."""
+﻿"""POS endpoints: barcode search, counter sale registration, discounts and cash closing."""
 from functools import lru_cache
 from typing import Annotated
 
@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query, status
 
 from app.domain.pos import (
     ApplyDiscountRequest,
+    CashRegisterClosingResponse,
     ErrorResponse,
     ProductSearchResponse,
     SaleCreateRequest,
@@ -155,3 +156,49 @@ def apply_discount_to_sale(
     service: Annotated[PosService, Depends(get_pos_service)],
 ) -> SaleDiscountResponse:
     return service.apply_discount(sale_id, payload)
+
+
+@router.post(
+    "/cash-registers/{cash_register_id}/close",
+    response_model=CashRegisterClosingResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Realizar cierre de caja del turno (HU-032: FUN-4.2.4)",
+    description=(
+        "Consolida todas las ventas registradas desde la apertura de la caja, "
+        "calcula el total por medio de pago y el total general, guarda el cierre "
+        "y deja la caja en estado 'cerrada' rechazando nuevas ventas (HU-012)."
+    ),
+    responses={
+        201: {
+            "model": CashRegisterClosingResponse,
+            "description": "Cierre de caja registrado exitosamente (CA1-CA3).",
+        },
+        404: {
+            "model": ErrorResponse,
+            "description": "La caja indicada no existe.",
+            "content": {
+                "application/json": {
+                    "example": {"mensaje": "La caja 99 no existe."}
+                }
+            },
+        },
+        409: {
+            "model": ErrorResponse,
+            "description": "No hay una caja abierta para realizar el cierre (CA4).",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "mensaje": "No hay una caja abierta para realizar el cierre."
+                    }
+                }
+            },
+        },
+    },
+)
+def close_cash_register(
+    cash_register_id: Annotated[
+        int, Path(gt=0, description="ID de la caja abierta a cerrar.")
+    ],
+    service: Annotated[PosService, Depends(get_pos_service)],
+) -> CashRegisterClosingResponse:
+    return service.close_cash_register(cash_register_id)
